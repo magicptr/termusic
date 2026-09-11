@@ -1,0 +1,81 @@
+# termusic configuration -- schema version 1
+#
+# Every key is optional. Omitted keys keep the value shown here, which is also
+# what termusic uses when this file does not exist at all.
+#
+# Precedence for the MPD endpoint: command line > environment > this file >
+# built-in defaults. MPD_HOST and MPD_PORT are the conventional MPD variables
+# and are honored; --config PATH and TERMUSIC_CONFIG choose this file.
+#
+# termusic is an MPD client. It never starts, stops or configures the MPD
+# daemon; it only connects to it.
+
+schema_version = 1
+
+[general]
+# Which page opens at startup: "library" (the Vault) or "core".
+start_page = "library"
+# true  = quitting stops MPD playback (the historical behaviour)
+# false = quitting only disconnects; MPD keeps playing
+stop_on_exit = true
+seek_step = 5
+volume_step = 5
+
+[library]
+# The directory MPD serves. Informational: MPD owns its own music_directory.
+path = ""
+
+[mpd]
+# Empty host and port 0 mean "not configured here", so MPD_HOST/MPD_PORT and
+# then the built-in default (127.0.0.1:6600) apply. A remote server is set the
+# same way: host = "musicbox.lan".
+host = "127.0.0.1"
+port = 6600
+# Only when the server requires one. Prefer this file (0600) or MPD_HOST's
+# password@host form over the command line, which is visible in `ps`.
+password = ""
+# Socket timeout in milliseconds. Never 0: libmpdclient reads 0 as "wait
+# forever", which would make a hung server unquittable.
+timeout_ms = 2000
+# Reconnect on its own, with a bounded retry interval, when the server goes away.
+auto_reconnect = true
+
+[appearance]
+# Theme id: catppuccin-mocha (default), nord, or a theme file in
+# `theme_directory` below.
+theme = "default"
+# Empty means the `themes` directory next to this file.
+theme_directory = ""
+# "nerd" needs a patched font; "unicode" is the safe fallback.
+icons = "nerd"
+
+[visualizer]
+enabled = true
+# classic-bars | waterfall | particles
+style = "classic-bars"
+# theme | ice | fire | rainbow
+palette = "theme"
+refresh_hz = 60
+sensitivity = 1
+bar_density = 64
+# MPD writes its spectrum here (audio_output type "fifo"); termusic reads it.
+fifo_path = "/tmp/mpd.fifo"
+sample_rate = 44100
+channels = 2
+
+[history]
+# Application-owned playback history, in termusic's XDG data directory. MPD is
+# never modified by it.
+enabled = true
+max_entries = 100
+
+[plugins]
+enabled = true
+# Empty means the `plugins` directory in termusic's XDG data directory.
+directory = ""
+
+# Key bindings: only what you write here overrides a built-in binding.
+# [keybindings.global]
+# toggle_immersive = "i"
+# [keybindings.tree]
+# next = ["j", "Down"]

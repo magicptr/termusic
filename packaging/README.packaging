@@ -1,0 +1,104 @@
+# Packaging termusic
+
+Everything here exists so a distribution packager does not have to reverse
+engineer the project. termusic is a **client**: the MPD daemon is an external
+backend and is never installed, started, stopped or configured by termusic.
+
+## Metadata
+
+| field | value |
+|---|---|
+| binary | `termusic` (installed to `${prefix}/bin/termusic`) |
+| version | from `project(termusic VERSION ...)` in `CMakeLists.txt`; `termusic --version` prints `termusic <version>` |
+| license | `GPL-3.0-or-later` (see `LICENSE`) |
+| architecture | any the toolchain supports; release archives are built for `x86_64` |
+| build system | CMake ≥ 3.20 + Ninja or Make, a C++20 compiler |
+
+## Runtime dependencies
+
+| dependency | kind | why |
+|---|---|---|
+| `libmpdclient.so.2` | **hard**, dynamic | the MPD protocol client |
+| `libfftw3f.so.3` | **hard**, dynamic | the audio spectrum analyzer behind the visualizer |
+| `libstdc++`, `libm`, `libc` | hard, dynamic | the C++ runtime |
+| FTXUI | **static**, linked in | the terminal UI (no runtime package needed) |
+| `mpd` (the daemon) | **optional / recommended** | only for users who want a *local* backend; a remote MPD works with no local daemon at all |
+
+License obligations are recorded in `THIRD_PARTY_LICENSES.md`, which ships in the
+archive and in `${prefix}/share/doc/termusic/`. Short version: FTXUI (MIT) is
+linked **statically**, so its notice must accompany the binary; libmpdclient
+(`BSD-2-Clause OR BSD-3-Clause`) and FFTW 3 (`GPL-2.0-or-later AND MIT AND
+BSD-2-Clause`) are **dynamic** dependencies whose licenses are shipped by their
+own distribution packages. termusic itself is `GPL-3.0-or-later`, which is
+compatible with FFTW's "or later" terms.
+
+Verify the exact list for a built binary with `ldd path/to/termusic`.
+
+Consequences for package metadata:
+
+* `Requires:` / `Depends:` must list `libmpdclient` and `fftw3f` (plus the C++
+  runtime), never `mpd`.
+* `Recommends:` (deb) / `Suggests:` (rpm) is the right place for `mpd`, together
+  with a note that termusic connects to `127.0.0.1:6600` by default.
+* Do **not** ship an MPD service unit, do not enable `mpd.service`, and do not
+  add any scriptlet that starts MPD. termusic never manages the daemon.
+
+## Install
+
+```bash
+cmake -S . -B build/release -G Ninja -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_INSTALL_PREFIX=/usr
+cmake --build build/release
+DESTDIR="$pkgdir" cmake --install build/release
+```
+
+That installs:
+
+```
+${prefix}/bin/termusic
+${prefix}/include/termusic/plugin_api.h
+${prefix}/share/doc/termusic/README.md
+${prefix}/share/doc/termusic/LICENSE
+${prefix}/share/doc/termusic/THIRD_PARTY_LICENSES.md
+${prefix}/share/doc/termusic/config.example.toml
+${prefix}/share/doc/termusic/README.packaging
+```
+
+No tests, fixtures, captures or build files are installed. Runtime paths are
+resolved through the XDG base directories (`$XDG_CONFIG_HOME/termusic`,
+`$XDG_DATA_HOME/termusic`, `$XDG_CACHE_HOME/termusic`), so nothing depends on the
+source tree or the working directory.
+
+## What has actually been built
+
+For **v0.1.0** the published artifact is the tar.gz only. The packaging metadata
+in this directory is prepared and, where the tooling exists, verified:
+
+| target | state on the machine this was prepared on |
+|---|---|
+| runtime archive | **BUILT** -- `./build/release.sh`, see below |
+| RPM | **BUILT, not published** -- `rpmbuild -ba packaging/termusic.spec` into a throwaway `_topdir` under `build/dist/rpmbuild/` produced `termusic-0.1.0-1.fc44.x86_64.rpm` (plus the source RPM). No `sudo`, nothing installed on the host. |
+| DEB | **METADATA ONLY** -- the machine has no `dpkg-buildpackage`, `dpkg-source` or `debhelper`, so `debian/` has been written and reviewed but never executed. |
+
+Nothing here claims a distribution repository, a signed package, or a package
+built on a distribution that was not used. The RPM's `Recommends: mpd` is the
+only place a local daemon is suggested, and it is deliberately weak: a remote
+MPD needs no local one.
+
+## Release archive
+
+```bash
+./build/release.sh          # -> build/dist/termusic-<version>-linux-x86_64.tar.gz
+```
+
+The script builds the release binary, stages exactly the files below and writes
+a `.sha256` next to the archive:
+
+```
+termusic-<version>-linux-x86_64/
+├── termusic
+├── README.md
+├── LICENSE
+├── THIRD_PARTY_LICENSES.md
+└── config.example.toml
+```

@@ -1,0 +1,38 @@
+# The immersive renderer, end to end, with a spectrum but no audio hardware:
+# `--ui-visualizer-motion-test` fills the same 96-band motion vector the
+# analyzer fills, so the ACTIVE style reads a real spectrum of the canonical
+# width.
+#
+# The assertions are deliberately thin -- the geometry is covered by
+# termusic_visualizer_layout and the styles and their state by
+# termusic_visualizer_styles. What this file adds is that the renderer runs at
+# several sizes without reading past the end of the spectrum: in a build with
+# library assertions on (the debug build), an out-of-range index aborts the
+# process and the test fails.
+size 150x44
+load
+key i
+sleep 0.4
+state
+expect-state vizStyle=classic-bars
+dump
+
+size 110x32
+sleep 0.2
+state
+expect-state vizStyle=classic-bars
+dump
+
+size 78x24
+sleep 0.2
+state
+expect-state vizStyle=classic-bars
+dump
+
+# Back to the widest size, then out: the renderer must survive a resize back
+# into a geometry it has already drawn.
+size 150x44
+sleep 0.2
+state
+expect-state vizStyle=classic-bars
+dump

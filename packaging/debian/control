@@ -1,0 +1,30 @@
+Source: termusic
+Section: sound
+Priority: optional
+Maintainer: termusic maintainers <termusic@example.invalid>
+Build-Depends: debhelper-compat (= 13), cmake (>= 3.20), ninja-build,
+               g++ (>= 12) | clang (>= 16),
+               libmpdclient-dev, libfftw3-dev, libftxui-dev
+Standards-Version: 4.6.2
+Homepage: https://github.com/termusic/termusic
+Rules-Requires-Root: no
+
+Package: termusic
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+# The MPD DAEMON is optional: termusic connects to a local OR remote MPD, so a
+# user with a server elsewhere must not be forced to install one here.
+Recommends: mpd
+Description: lightweight terminal music client for MPD
+ termusic is a terminal music client. It is a frontend for the Music Player
+ Daemon: MPD owns playback, the decoder, the output, the database and the
+ queue, while termusic provides the terminal interface, the Vault/Core
+ structure, its own playback history and configuration, and controls playback
+ through MPD.
+ .
+ termusic connects automatically at startup to 127.0.0.1:6600 unless another
+ endpoint is configured (Core > Connection, config.toml, MPD_HOST/MPD_PORT or
+ --host/--port). MPD may run locally or on a remote machine.
+ .
+ termusic never starts, stops, installs or configures the MPD daemon: that
+ lifecycle belongs to the user or the system.

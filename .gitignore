@@ -1,0 +1,22 @@
+# --- published binaries -----------------------------------------------------
+# build/make.sh and build/make.sh --debug regenerate these two files. They are
+# the only executables a user ever runs, and they are never committed.
+build/termusic
+build/termusic-debug
+
+# --- build output -----------------------------------------------------------
+# Everything the build generates under build/ stays out of the repository: the
+# cmake/ninja trees (release/, dev/, debug/, asan/, tsan/, sanitize*/), the
+# vcpkg overlay, packages under dist/, and the local livecheck harness with its
+# fixtures and captures.
+#
+# The hand-written entry points build/*.sh ARE source -- build/make.sh is the
+# documented way to build termusic -- so they are re-included below.
+/build/*
+!/build/*.sh
+
+
+# --- editor droppings -------------------------------------------------------
+*.swp
+*.swo
+*~

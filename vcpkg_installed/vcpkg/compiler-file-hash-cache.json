@@ -1,0 +1,14 @@
+{
+  "/usr/lib64/ccache/c++" : 
+  {
+    "hash" : "9c659cd3924e05dc7e6238cdbabb9209f7d7bc4f",
+    "size" : 1418488,
+    "timestamp" : 1770422400
+  },
+  "/usr/lib64/ccache/cc" : 
+  {
+    "hash" : "9c659cd3924e05dc7e6238cdbabb9209f7d7bc4f",
+    "size" : 1418488,
+    "timestamp" : 1770422400
+  }
+}

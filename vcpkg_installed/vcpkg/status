@@ -1,0 +1,32 @@
+Package: vcpkg-cmake-config
+Version: 2026-07-21
+Architecture: x64-linux
+Multi-Arch: same
+Abi: 46749801884814a56d2f79deb28e48ffee928132df1b318b3bfa86acdb7fe894
+Status: install ok installed
+
+Package: vcpkg-cmake
+Version: 2025-08-07
+Architecture: x64-linux
+Multi-Arch: same
+Abi: 1b9686d2a7d9a4d1daa1d64016a2a8dfbed6541b2cfe95b429cd50c6c4dfb918
+Status: install ok installed
+
+Package: ftxui
+Version: 7.0.3
+Depends: vcpkg-cmake, vcpkg-cmake-config
+Architecture: x64-linux
+Multi-Arch: same
+Abi: 738e5d75d9b8c480b37b0449ef383b665b61fa18d2730630c4272a50de302d42
+Description: C++ Functional Terminal User Interface
+Status: install ok installed
+
+Package: stb
+Version: 2024-07-29
+Port-Version: 1
+Architecture: x64-linux
+Multi-Arch: same
+Abi: 779b10089466e96dc729fd014752be17021061a4a76ea7f7b5254f96a3f5c70c
+Description: public domain header-only libraries
+Status: install ok installed
+
