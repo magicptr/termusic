@@ -1,8 +1,0 @@
-[
-{
-  "directory": "/home/yiming/Code/cpp/termusic/out/build/Clang 22.1.8 x86_64-redhat-linux-gnu",
-  "command": "/usr/lib64/ccache/clang++   -g -o CMakeFiles/termusic.dir/main.cpp.o -c /home/yiming/Code/cpp/termusic/main.cpp",
-  "file": "/home/yiming/Code/cpp/termusic/main.cpp",
-  "output": "CMakeFiles/termusic.dir/main.cpp.o"
-}
-]

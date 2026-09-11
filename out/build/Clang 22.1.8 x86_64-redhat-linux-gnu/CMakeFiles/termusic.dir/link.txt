@@ -1,1 +1,0 @@
-/usr/lib64/ccache/clang++ -g -Xlinker --dependency-file=CMakeFiles/termusic.dir/link.d CMakeFiles/termusic.dir/main.cpp.o -o termusic

@@ -15,6 +15,19 @@ build/termusic-debug
 /build/*
 !/build/*.sh
 
+# --- generated dependency and IDE trees -------------------------------------
+# vcpkg's default per-project install target (the build scripts use
+# build/vcpkg-root instead, but a plain `cmake` run creates this one) and the
+# output tree CMake/IDE integrations generate. Both are rebuilt from vcpkg.json
+# and must never be part of the source, or a fresh clone would start from a
+# stale dependency tree.
+vcpkg_installed/
+out/
+
+# IDE-generated configure presets: they hard-code this machine's compiler paths
+# and the VCPKG_ROOT environment. The documented flow is ./build/make.sh.
+CMakePresets.json
+CMakeUserPresets.json
 
 # --- editor droppings -------------------------------------------------------
 *.swp
