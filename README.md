@@ -49,9 +49,21 @@ server that is already configured and running; it does not set one up for you.
 
 ## Build
 
-The project needs FTXUI, libmpdclient, FFTW3 (single precision),
-CMake 3.20+ and a C++20 compiler. `libmpdclient` and `fftw3f` are discovered
-through pkg-config; FTXUI is provided by the vcpkg manifest.
+A fresh clone needs these build tools and development packages:
+
+| requirement | why |
+|---|---|
+| CMake 3.20+ and Ninja | the build system the scripts drive |
+| a C++20 compiler (Clang or GCC) | the language level of the source |
+| pkg-config | how the two system libraries are found |
+| [vcpkg](https://github.com/microsoft/vcpkg#quick-start) | installs FTXUI from the manifest (`vcpkg.json`) |
+| libmpdclient development package | the MPD client library (dynamic at runtime) |
+| FFTW3 single-precision development package (`fftw3f`) | the visualizer's spectrum analysis |
+
+`libmpdclient` and `fftw3f` stay system packages found through pkg-config; only
+FTXUI comes from the vcpkg manifest. The build scripts find vcpkg by themselves
+through `VCPKG_ROOT`, or through a `vcpkg` executable on `PATH`, and install
+FTXUI into the checkout's own `build/vcpkg-root` on the first build.
 
 The build scripts publish two artifacts, and these are the only paths a user
 needs to know:
@@ -62,11 +74,13 @@ needs to know:
 | `./build/make.sh --debug` | `build/termusic-debug` (assertions on) |
 
 ```bash
-export VCPKG_ROOT=/path/to/vcpkg
 ./build/make.sh                      # -> build/termusic
 ./build/make.sh --debug              # -> build/termusic-debug
 ctest --test-dir build/dev --output-on-failure   # the test suite
 ```
+
+Run `export VCPKG_ROOT=/path/to/vcpkg` first only when vcpkg is not already on
+`PATH`.
 
 Each script deletes its own previous artifact before compiling, so a failed
 build cannot leave a stale executable at the published path, and it leaves the

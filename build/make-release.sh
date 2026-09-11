@@ -14,10 +14,9 @@
 # the other one's artifact.
 #
 # Why the overlay/touch dance instead of a bare `cmake --build`:
-#  * this checkout's vcpkg root sits on a path that is not always writable, and
-#    vcpkg takes a lock there on every reconfigure. build/vcpkg-root is a
-#    writable overlay of it (scripts/ports/triplets symlinked, installed tree
-#    copied), so a build dir configured against the overlay always reconfigures;
+#  * vcpkg takes a lock on its own root during a reconfigure, and that root is
+#    not necessarily writable, so build/vcpkg-root is a writable overlay of it
+#    (see build/vcpkg-env.sh);
 #  * on this filesystem a write and an edit stamp different clocks, which makes
 #    ninja's mtime comparison unreliable, so the sources are touched first.
 set -euo pipefail
@@ -34,23 +33,22 @@ out="$root/build/termusic"
 #    internal: nothing there is user-facing.
 rm -f "$out" build/release/termusic
 
-overlay="$root/build/vcpkg-root"
-if [ ! -e "$overlay/.vcpkg-root" ]; then
-  mkdir -p "$overlay"/{buildtrees,downloads,packages,installed}
-  for part in scripts ports triplets versions; do
-    [ -e "$overlay/$part" ] || ln -s "$VCPKG_ROOT/$part" "$overlay/$part" 2>/dev/null || true
-  done
-  touch "$overlay/.vcpkg-root"
-fi
-if [ ! -d "$overlay/installed/x64-linux/share" ] && [ -d build/dev/vcpkg_installed/x64-linux ]; then
-  cp -a build/dev/vcpkg_installed/x64-linux "$overlay/installed/x64-linux"
-fi
+# 2. Dependency bootstrap: find the real vcpkg, prepare the writable overlay.
+#    The manifest install below is what puts FTXUI into this checkout, so a
+#    fresh clone builds with no prepared state of any kind.
+. "$root/build/vcpkg-env.sh"
+termusic_vcpkg_setup "$root"
 
-CCACHE_DISABLE=1 VCPKG_ROOT="$overlay" cmake -S . -B build/release -G Ninja \
+echo "configuring build/release (vcpkg $VCPKG_REAL_ROOT, overlay $VCPKG_OVERLAY)"
+if ! CCACHE_DISABLE=1 VCPKG_ROOT="$VCPKG_OVERLAY" cmake -S . -B build/release -G Ninja \
   -DCMAKE_BUILD_TYPE=Release \
-  -DCMAKE_TOOLCHAIN_FILE="$overlay/scripts/buildsystems/vcpkg.cmake" \
-  -DVCPKG_INSTALLED_DIR="$overlay/installed" \
-  -DVCPKG_MANIFEST_INSTALL=OFF >/dev/null
+  -DCMAKE_TOOLCHAIN_FILE="$VCPKG_TOOLCHAIN" \
+  -DVCPKG_INSTALLED_DIR="$VCPKG_INSTALLED" \
+  -DVCPKG_MANIFEST_INSTALL=ON > build/release/configure.log 2>&1; then
+  echo "configure failed; last lines of build/release/configure.log:" >&2
+  tail -n 25 build/release/configure.log >&2
+  exit 1
+fi
 
 find src tests -name '*.cpp' -o -name '*.hpp' | xargs touch
 CCACHE_DISABLE=1 cmake --build build/release --target termusic "$@"

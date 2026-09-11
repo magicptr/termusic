@@ -31,23 +31,22 @@ rm -f "$out" \
       build/dev/termusic_plugin_tests \
       build/dev/termusic_test_plugin.so
 
-overlay="$root/build/vcpkg-root"
-if [ ! -e "$overlay/.vcpkg-root" ]; then
-  mkdir -p "$overlay"/{buildtrees,downloads,packages,installed}
-  for part in scripts ports triplets versions; do
-    [ -e "$overlay/$part" ] || ln -s "$VCPKG_ROOT/$part" "$overlay/$part" 2>/dev/null || true
-  done
-  touch "$overlay/.vcpkg-root"
-fi
-if [ ! -d "$overlay/installed/x64-linux/share" ] && [ -d build/dev/vcpkg_installed/x64-linux ]; then
-  cp -a build/dev/vcpkg_installed/x64-linux "$overlay/installed/x64-linux"
-fi
+# Dependency bootstrap: the SAME shared helper the release build uses, so the
+# two variants can never disagree about where vcpkg or its installed tree is.
+# The manifest install below is what puts FTXUI into this checkout.
+. "$root/build/vcpkg-env.sh"
+termusic_vcpkg_setup "$root"
 
-CCACHE_DISABLE=1 VCPKG_ROOT="$overlay" cmake -S . -B build/dev -G Ninja \
+echo "configuring build/dev (vcpkg $VCPKG_REAL_ROOT, overlay $VCPKG_OVERLAY)"
+if ! CCACHE_DISABLE=1 VCPKG_ROOT="$VCPKG_OVERLAY" cmake -S . -B build/dev -G Ninja \
   -DCMAKE_BUILD_TYPE=Debug \
-  -DCMAKE_TOOLCHAIN_FILE="$overlay/scripts/buildsystems/vcpkg.cmake" \
-  -DVCPKG_INSTALLED_DIR="$overlay/installed" \
-  -DVCPKG_MANIFEST_INSTALL=OFF >/dev/null
+  -DCMAKE_TOOLCHAIN_FILE="$VCPKG_TOOLCHAIN" \
+  -DVCPKG_INSTALLED_DIR="$VCPKG_INSTALLED" \
+  -DVCPKG_MANIFEST_INSTALL=ON > build/dev/configure.log 2>&1; then
+  echo "configure failed; last lines of build/dev/configure.log:" >&2
+  tail -n 25 build/dev/configure.log >&2
+  exit 1
+fi
 
 find src tests -name '*.cpp' -o -name '*.hpp' | xargs touch
 CCACHE_DISABLE=1 cmake --build build/dev "$@"
