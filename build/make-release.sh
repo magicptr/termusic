@@ -40,6 +40,9 @@ rm -f "$out" build/release/termusic
 termusic_vcpkg_setup "$root"
 
 echo "configuring build/release (vcpkg $VCPKG_REAL_ROOT, overlay $VCPKG_OVERLAY)"
+# The log lives in the build directory, which does not exist yet in a fresh
+# clone (cmake creates it) -- so create it before the redirection.
+mkdir -p build/release
 if ! CCACHE_DISABLE=1 VCPKG_ROOT="$VCPKG_OVERLAY" cmake -S . -B build/release -G Ninja \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_TOOLCHAIN_FILE="$VCPKG_TOOLCHAIN" \
