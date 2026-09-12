@@ -474,7 +474,7 @@ Public License instead of this License.
 
 | component | upstream |
 |---|---|
-| FTXUI | https://github.com/ArthurSonzogni/FTXUI (version 7.0.3, vendored through the vcpkg manifest) |
+| FTXUI | https://github.com/ArthurSonzogni/FTXUI (version 7.0.3, taken from a system package or fetched from this upstream repository at build time) |
 | libmpdclient | https://www.musicpd.org/libs/libmpdclient/ (2.26) |
 | FFTW | http://www.fftw.org/ (3.3.10) |
 

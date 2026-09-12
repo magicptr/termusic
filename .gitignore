@@ -7,25 +7,19 @@ build/termusic-debug
 # --- build output -----------------------------------------------------------
 # Everything the build generates under build/ stays out of the repository: the
 # cmake/ninja trees (release/, dev/, debug/, asan/, tsan/, sanitize*/), the
-# vcpkg overlay, packages under dist/, and the local livecheck harness with its
-# fixtures and captures.
+# fetched FTXUI source and build state CMake keeps inside them, packages under
+# dist/, and the local livecheck harness with its fixtures and captures.
 #
 # The hand-written entry points build/*.sh ARE source -- build/make.sh is the
 # documented way to build termusic -- so they are re-included below.
 /build/*
 !/build/*.sh
 
-# --- generated dependency and IDE trees -------------------------------------
-# vcpkg's default per-project install target (the build scripts use
-# build/vcpkg-root instead, but a plain `cmake` run creates this one) and the
-# output tree CMake/IDE integrations generate. Both are rebuilt from vcpkg.json
-# and must never be part of the source, or a fresh clone would start from a
-# stale dependency tree.
-vcpkg_installed/
+# --- generated IDE trees ----------------------------------------------------
+# CMake/IDE integrations write their own output tree and configure presets that
+# hard-code this machine's compiler paths. The documented flow is
+# ./build/make.sh.
 out/
-
-# IDE-generated configure presets: they hard-code this machine's compiler paths
-# and the VCPKG_ROOT environment. The documented flow is ./build/make.sh.
 CMakePresets.json
 CMakeUserPresets.json
 

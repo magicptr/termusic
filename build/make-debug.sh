@@ -11,8 +11,8 @@
 # destroy the other one's artifact.
 #
 # build/dev is an internal build directory (the test binaries ctest runs live
-# there); no path inside it is something a user needs. Same overlay/timestamp
-# handling as make-release.sh; see that script for why it is needed.
+# there); no path inside it is something a user needs. Same dependency and
+# timestamp handling as make-release.sh; see that script for why it is needed.
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
@@ -31,21 +31,18 @@ rm -f "$out" \
       build/dev/termusic_plugin_tests \
       build/dev/termusic_test_plugin.so
 
-# Dependency bootstrap: the SAME shared helper the release build uses, so the
-# two variants can never disagree about where vcpkg or its installed tree is.
-# The manifest install below is what puts FTXUI into this checkout.
-. "$root/build/vcpkg-env.sh"
-termusic_vcpkg_setup "$root"
-
-echo "configuring build/dev (vcpkg $VCPKG_REAL_ROOT, overlay $VCPKG_OVERLAY)"
-# The log lives in the build directory, which does not exist yet in a fresh
-# clone (cmake creates it) -- so create it before the redirection.
+# Configure. The log lives in the build directory, which does not exist yet in
+# a fresh clone (cmake creates it), so create it before the redirection.
+# A build directory left over from the removed vcpkg toolchain would silently
+# keep using it, so such a cache is discarded and configured from scratch.
+if grep -q 'vcpkg' build/dev/CMakeCache.txt 2>/dev/null; then
+  echo "discarding build/dev: it was configured with the removed vcpkg toolchain"
+  rm -rf build/dev
+fi
 mkdir -p build/dev
-if ! CCACHE_DISABLE=1 VCPKG_ROOT="$VCPKG_OVERLAY" cmake -S . -B build/dev -G Ninja \
-  -DCMAKE_BUILD_TYPE=Debug \
-  -DCMAKE_TOOLCHAIN_FILE="$VCPKG_TOOLCHAIN" \
-  -DVCPKG_INSTALLED_DIR="$VCPKG_INSTALLED" \
-  -DVCPKG_MANIFEST_INSTALL=ON > build/dev/configure.log 2>&1; then
+echo "configuring build/dev (FTXUI from the system, or fetched once)"
+if ! CCACHE_DISABLE=1 cmake -S . -B build/dev -G Ninja \
+  -DCMAKE_BUILD_TYPE=Debug > build/dev/configure.log 2>&1; then
   echo "configure failed; last lines of build/dev/configure.log:" >&2
   tail -n 25 build/dev/configure.log >&2
   exit 1

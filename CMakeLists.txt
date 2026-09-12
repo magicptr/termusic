@@ -6,7 +6,38 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-find_package(ftxui CONFIG REQUIRED)
+# FTXUI 7.0.3 is the release termusic is developed and tested against, and the
+# build uses exactly that version on every path.
+#
+# A source build must not require a package manager. When a system package
+# provides ftxuiConfig.cmake for 7.0.3, `find_package` uses it; any other system
+# version (and no system package at all) falls back to FetchContent, which
+# clones the pinned upstream release into the build tree. The tag is never a
+# moving branch, so a rebuild reuses the already-fetched source instead of
+# downloading it again.
+#
+# EXACT is what makes "the system package" mean 7.0.3 and not, say, 7.1 or 8.0:
+# the generated ftxui-config-version.cmake sets PACKAGE_VERSION_EXACT only when
+# the requested version string matches its own.
+set(TERMUSIC_FTXUI_VERSION 7.0.3)
+find_package(ftxui ${TERMUSIC_FTXUI_VERSION} EXACT CONFIG QUIET)
+if(ftxui_FOUND)
+  message(STATUS "FTXUI: using the system package ${ftxui_VERSION} (${ftxui_DIR})")
+else()
+  include(FetchContent)
+  # The FTXUI test suite, examples and documentation are not part of termusic.
+  set(FTXUI_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+  set(FTXUI_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+  set(FTXUI_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+  FetchContent_Declare(ftxui
+    GIT_REPOSITORY https://github.com/ArthurSonzogni/FTXUI.git
+    GIT_TAG v${TERMUSIC_FTXUI_VERSION}
+    GIT_SHALLOW TRUE
+  )
+  message(STATUS "FTXUI: no system package for ${TERMUSIC_FTXUI_VERSION}, fetching v${TERMUSIC_FTXUI_VERSION}")
+  FetchContent_MakeAvailable(ftxui)
+endif()
+
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(MPDCLIENT REQUIRED IMPORTED_TARGET libmpdclient)
 pkg_check_modules(FFTW3F REQUIRED IMPORTED_TARGET fftw3f)

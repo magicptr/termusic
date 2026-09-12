@@ -13,12 +13,14 @@
 # published paths are independent, and building one variant must never destroy
 # the other one's artifact.
 #
-# Why the overlay/touch dance instead of a bare `cmake --build`:
-#  * vcpkg takes a lock on its own root during a reconfigure, and that root is
-#    not necessarily writable, so build/vcpkg-root is a writable overlay of it
-#    (see build/vcpkg-env.sh);
-#  * on this filesystem a write and an edit stamp different clocks, which makes
-#    ninja's mtime comparison unreliable, so the sources are touched first.
+# Dependencies: libmpdclient and fftw3f are found through pkg-config. FTXUI is
+# used from a system package when one is installed; otherwise CMake fetches the
+# pinned release into the build tree on the first configure, which needs network
+# access once. No package manager is involved.
+#
+# The sources are touched before building because on this filesystem a write and
+# an edit stamp different clocks, which makes ninja's mtime comparison
+# unreliable.
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
@@ -33,21 +35,18 @@ out="$root/build/termusic"
 #    internal: nothing there is user-facing.
 rm -f "$out" build/release/termusic
 
-# 2. Dependency bootstrap: find the real vcpkg, prepare the writable overlay.
-#    The manifest install below is what puts FTXUI into this checkout, so a
-#    fresh clone builds with no prepared state of any kind.
-. "$root/build/vcpkg-env.sh"
-termusic_vcpkg_setup "$root"
-
-echo "configuring build/release (vcpkg $VCPKG_REAL_ROOT, overlay $VCPKG_OVERLAY)"
-# The log lives in the build directory, which does not exist yet in a fresh
-# clone (cmake creates it) -- so create it before the redirection.
+# 2. Configure. The log lives in the build directory, which does not exist yet
+#    in a fresh clone (cmake creates it), so create it before the redirection.
+# A build directory left over from the removed vcpkg toolchain would silently
+# keep using it, so such a cache is discarded and configured from scratch.
+if grep -q 'vcpkg' build/release/CMakeCache.txt 2>/dev/null; then
+  echo "discarding build/release: it was configured with the removed vcpkg toolchain"
+  rm -rf build/release
+fi
 mkdir -p build/release
-if ! CCACHE_DISABLE=1 VCPKG_ROOT="$VCPKG_OVERLAY" cmake -S . -B build/release -G Ninja \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DCMAKE_TOOLCHAIN_FILE="$VCPKG_TOOLCHAIN" \
-  -DVCPKG_INSTALLED_DIR="$VCPKG_INSTALLED" \
-  -DVCPKG_MANIFEST_INSTALL=ON > build/release/configure.log 2>&1; then
+echo "configuring build/release (FTXUI from the system, or fetched once)"
+if ! CCACHE_DISABLE=1 cmake -S . -B build/release -G Ninja \
+  -DCMAKE_BUILD_TYPE=Release > build/release/configure.log 2>&1; then
   echo "configure failed; last lines of build/release/configure.log:" >&2
   tail -n 25 build/release/configure.log >&2
   exit 1

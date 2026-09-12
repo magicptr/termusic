@@ -56,14 +56,20 @@ A fresh clone needs these build tools and development packages:
 | CMake 3.20+ and Ninja | the build system the scripts drive |
 | a C++20 compiler (Clang or GCC) | the language level of the source |
 | pkg-config | how the two system libraries are found |
-| [vcpkg](https://github.com/microsoft/vcpkg#quick-start) | installs FTXUI from the manifest (`vcpkg.json`) |
 | libmpdclient development package | the MPD client library (dynamic at runtime) |
 | FFTW3 single-precision development package (`fftw3f`) | the visualizer's spectrum analysis |
+| git and network access, first build only | fetching FTXUI when the system has no package for it |
 
-`libmpdclient` and `fftw3f` stay system packages found through pkg-config; only
-FTXUI comes from the vcpkg manifest. The build scripts find vcpkg by themselves
-through `VCPKG_ROOT`, or through a `vcpkg` executable on `PATH`, and install
-FTXUI into the checkout's own `build/vcpkg-root` on the first build.
+**vcpkg is not required**, and neither is any other package manager.
+
+`libmpdclient` and `fftw3f` are ordinary system packages found through
+pkg-config; configuration fails with the usual pkg-config diagnostics when one
+is missing. FTXUI is taken from a system package only when it provides exactly
+version 7.0.3; any other version, and no system package at all, falls back to
+CMake fetching that pinned release into the build tree on the first configure.
+That first fetch needs network access; after it, the sources are part of the
+generated build directory and later rebuilds reuse them. A build against an
+installed system FTXUI 7.0.3 needs no network at all.
 
 The build scripts publish two artifacts, and these are the only paths a user
 needs to know:
@@ -78,9 +84,6 @@ needs to know:
 ./build/make.sh --debug              # -> build/termusic-debug
 ctest --test-dir build/dev --output-on-failure   # the test suite
 ```
-
-Run `export VCPKG_ROOT=/path/to/vcpkg` first only when vcpkg is not already on
-`PATH`.
 
 Each script deletes its own previous artifact before compiling, so a failed
 build cannot leave a stale executable at the published path, and it leaves the
@@ -143,13 +146,9 @@ compiles a new one, so `build/` holds exactly one binary and it always matches
 the current source; a failed build leaves nothing stale behind to run by
 mistake. The build prints the time, size and md5 of what it produced.
 
-Both scripts point CMake at `build/vcpkg-root`, a writable overlay of the vcpkg
-root (its `scripts`/`ports`/`triplets` are symlinked and its installed tree is
-copied) because vcpkg takes a lock on the real root during a reconfigure, and
-that path is not always writable. They also touch the sources before building:
-on this filesystem a write and an edit stamp different clocks, which makes
-ninja's mtime comparison unreliable. Use them instead of a bare
-`cmake --build`.
+The scripts also touch the sources before building: on this filesystem a write
+and an edit stamp different clocks, which makes ninja's mtime comparison
+unreliable. Use them instead of a bare `cmake --build`.
 
 ### Interactive checks
 
