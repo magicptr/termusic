@@ -1,44 +1,44 @@
 # termusic
 
-termusic 是一款轻量、键盘驱动的 MPD（Music Player Daemon）终端音乐客户端。它提供音乐库浏览、播放控制、歌曲搜索、播放列表管理、主题切换、播放历史、插件扩展和频谱可视化，并支持连接本机或远程 MPD 服务。
+termusic is a lightweight, keyboard-driven terminal music client for MPD (Music Player Daemon). It lets you browse your music library, control playback, search for tracks, manage playlists, switch themes, view playback history, load plugins, and display a spectrum visualizer. It can connect to an MPD server running locally or remotely.
 
-## 演示
+## Demo
 
-![项目演示](./docs/images/list.png)
-![项目演示](./docs/images/play.png)
+![Library view](./docs/images/list.png)
+![Now Playing view](./docs/images/play.png)
 
-## 依赖
+## Requirements
 
-- 支持 C++20 的编译器
-- CMake 3.20 或更高版本
+- A C++20-compatible compiler
+- CMake 3.20 or later
 - Git
 - Meson
 - Ninja
-- 可访问的 MPD 服务
+- Access to an MPD server
 
-Ubuntu / Debian：
+Ubuntu / Debian:
 
 ```bash
 sudo apt update
 sudo apt install build-essential cmake git meson ninja-build
 ```
 
-Fedora：
+Fedora:
 
 ```bash
 sudo dnf install gcc-c++ cmake git meson ninja-build
 ```
 
-FTXUI、libmpdclient 和 kissfft 会在首次构建时自动下载并静态链接，无需单独安装对应的开发包。
-如果没有可连接的远程 MPD 服务，还需在本机安装并配置 `mpd`。
+FTXUI, libmpdclient, and kissfft are downloaded automatically during the first build and linked statically, so their development packages do not need to be installed separately.
+If you do not have access to a remote MPD server, install and configure `mpd` locally.
 
-## 克隆
+## Clone
 
 ```bash
 git clone https://github.com/magicptr/termusic.git
 ```
 
-## 构建
+## Build
 
 ```bash
 cd termusic
@@ -46,94 +46,94 @@ cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
 cmake --build build -j
 ```
 
-## 运行
+## Run
 
 ```bash
 ./build/termusic
 ```
 
-termusic 默认连接 `127.0.0.1:6600`。连接远程 MPD 服务时可使用：
+termusic connects to `127.0.0.1:6600` by default. To connect to a remote MPD server, run:
 
 ```bash
 ./build/termusic --host <MPD_HOST> --port <MPD_PORT>
 ```
 
-## 安装
+## Install
 
-安装到系统：
+Install system-wide:
 
 ```bash
 sudo cmake --install build
 termusic
 ```
 
-仅安装到当前用户：
+Install for the current user only:
 
 ```bash
 cmake --install build --prefix "$HOME/.local"
 termusic
 ```
 
-如果 `$HOME/.local/bin` 不在 `PATH` 中，可直接运行：
+If `$HOME/.local/bin` is not in your `PATH`, run termusic directly:
 
 ```bash
 "$HOME/.local/bin/termusic"
 ```
 
-## 快捷键操作
+## Keyboard Shortcuts
 
-### 全局
+### Global
 
-| 快捷键 | 操作 |
+| Shortcut | Action |
 | --- | --- |
-| `q` | 退出程序 |
-| `Esc` | 取消或返回 |
-| `Space` | 播放或暂停 |
-| `r` | 切换循环播放 |
-| `s` | 切换随机播放 |
-| `1` | 切换到音乐库（Vault） |
-| `2` | 切换到设置（Core） |
-| `i` | 进入或退出播放界面 |
+| `q` | Quit |
+| `Esc` | Cancel or go back |
+| `Space` | Play or pause |
+| `r` | Toggle repeat |
+| `s` | Toggle shuffle |
+| `1` | Switch to the music library (Vault) |
+| `2` | Switch to settings (Core) |
+| `i` | Enter or leave the Now Playing view |
 
-### 导航
+### Navigation
 
-| 快捷键 | 操作 |
+| Shortcut | Action |
 | --- | --- |
-| `j` / `k` | 向下或向上移动 |
-| `h` / `l` | 返回左侧面板或进入右侧面板 |
-| `Enter` | 打开、确认或播放所选歌曲 |
-| `g g` / `G` | 跳到第一项或最后一项 |
-| `PageDown` / `PageUp` | 向下或向上翻页 |
-| `Ctrl+d` / `Ctrl+u` | 在歌曲列表中向下或向上翻页 |
+| `j` / `k` | Move down or up |
+| `h` / `l` | Return to the left pane or enter the right pane |
+| `Enter` | Open, confirm, or play the selected track |
+| `g g` / `G` | Jump to the first or last item |
+| `PageDown` / `PageUp` | Move down or up by one page |
+| `Ctrl+d` / `Ctrl+u` | Move down or up by one page in the track list |
 
-### 音乐库与播放列表
+### Library and Playlists
 
-| 快捷键 | 操作 |
+| Shortcut | Action |
 | --- | --- |
-| `/` | 搜索当前列表 |
-| `n` / `N` | 跳到下一个或上一个搜索结果 |
-| `a` | 创建播放列表 |
-| `r` | 重命名所选播放列表 |
-| `d d` | 删除所选歌曲或播放列表 |
-| `y y` | 复制所选歌曲到寄存器 |
-| `p` | 将寄存器中的歌曲粘贴到播放列表 |
-| `v` | 进入可视选择模式 |
-| `K` / `J` | 将播放队列中的歌曲上移或下移 |
+| `/` | Search the current list |
+| `n` / `N` | Jump to the next or previous search result |
+| `a` | Create a playlist |
+| `r` | Rename the selected playlist |
+| `d d` | Delete the selected track or playlist |
+| `y y` | Copy the selected track to the register |
+| `p` | Paste tracks from the register into a playlist |
+| `v` | Enter visual selection mode |
+| `K` / `J` | Move a track up or down in the playback queue |
 
-在可视选择模式中使用 `j`、`k` 扩展选择范围，按 `y` 复制、`d` 删除，按 `Esc` 退出。
+In visual selection mode, use `j` and `k` to extend the selection, press `y` to copy, `d` to delete, or `Esc` to exit.
 
-### 播放界面
+### Now Playing View
 
-| 快捷键 | 操作 |
+| Shortcut | Action |
 | --- | --- |
-| `h` / `l` | 上一首或下一首 |
-| `j` / `k` | 降低或提高音量 |
-| `,` / `.` | 后退或快进 |
-| `Space` | 播放或暂停 |
-| `i` / `Esc` | 退出播放界面 |
+| `h` / `l` | Previous or next track |
+| `j` / `k` | Decrease or increase the volume |
+| `,` / `.` | Seek backward or forward |
+| `Space` | Play or pause |
+| `i` / `Esc` | Leave the Now Playing view |
 
-除固定的退出键 `q` 外，快捷键可以在 **Core → Keybindings** 中修改；按 `R` 可在该页面恢复全部默认键位。
+Except for the reserved quit key `q`, shortcuts can be changed under **Core → Keybindings**. Press `R` on that page to restore all default bindings.
 
 ---
 
-项目目前还在完善，如果在使用中有问题或有好的建议请[联系我](mailto:yiwithming@gmail.com)
+termusic is still under active development. If you encounter a problem or have a suggestion, please [contact me](mailto:yiwithming@gmail.com).
