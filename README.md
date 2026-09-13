@@ -2,6 +2,11 @@
 
 termusic 是一款轻量、键盘驱动的 MPD（Music Player Daemon）终端音乐客户端。它提供音乐库浏览、播放控制、歌曲搜索、播放列表管理、主题切换、播放历史、插件扩展和频谱可视化，并支持连接本机或远程 MPD 服务。
 
+## 效果
+
+![项目演示](./docs/images/list.png)
+![项目演示](./docs/images/play.png)
+
 ## 依赖
 
 - 支持 C++20 的编译器
