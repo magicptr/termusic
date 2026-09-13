@@ -20,41 +20,84 @@ while termusic provides the terminal interface over the MPD protocol.
 
 ## Requirements
 
-**Runtime**
+### Runtime
 
 - Linux
-- An **MPD server**, local or remote. termusic never installs, starts, stops or
-  configures MPD; that lifecycle belongs to you or to your system. It connects
-  to `127.0.0.1:6600` unless another endpoint is configured (Core → General,
-  `config.toml`, `MPD_HOST` / `MPD_PORT`, or `--host` / `--port`).
+- An **MPD server**, local or remote. termusic does not replace MPD: an MPD
+  server must be installed and running for termusic to play anything. termusic
+  never installs, starts, stops or configures the daemon — that lifecycle
+  belongs to you or to your system. It connects to `127.0.0.1:6600` unless
+  another endpoint is configured (Core → General, `config.toml`, `MPD_HOST` /
+  `MPD_PORT`, or `--host` / `--port`).
 
-**Build**
+Nothing else is needed at run time: no third-party shared library is linked
+apart from the C++ runtime that ships with your distribution (`libstdc++`,
+`libgcc_s`, `libm`, `libc`).
+
+### Build
 
 - CMake ≥ 3.20
-- A C++20 compiler
-- Meson and Ninja — the bundled libmpdclient is built with Meson
-- Git, and network access on the first configure: the pinned dependencies are
-  fetched from their upstream repositories
+- A C++20 compiler (GCC or Clang)
+- Git
+- Meson and Ninja — the bundled libmpdclient is built with Meson, whose build
+  backend is Ninja
+- A network connection for the first configure: FTXUI, libmpdclient and kissfft
+  are fetched from their upstream repositories and built from source
 
-FTXUI 7.0.3, libmpdclient 2.26 and kissfft are fetched and linked statically,
-so no development package is needed for them. FTXUI is taken from the system
-only when exactly that version is installed. No package manager, and no vcpkg,
-is involved.
+You do **not** need development packages for FTXUI, libmpdclient or kissfft,
+and no FFTW: CMake builds those three itself. No package manager and no vcpkg is
+involved.
 
-Ubuntu / Debian:
+## Install build dependencies
+
+### Ubuntu / Debian
 
 ```bash
 sudo apt update
-sudo apt install build-essential cmake ninja-build meson git
+sudo apt install build-essential cmake git meson ninja-build
 ```
 
-Fedora:
+### Fedora
 
 ```bash
-sudo dnf install gcc-c++ cmake ninja-build meson git
+sudo dnf install gcc-c++ make cmake git meson ninja-build
 ```
 
+On Debian and Ubuntu `build-essential` brings the compilers and `make` with it;
+on Fedora the compiler and `make` are their own packages (`gcc-c++`, `make`).
+Meson, Ninja, CMake and Git are the only other tools the build asks for.
+
+### What CMake downloads for you
+
+| component | how it is obtained | what you install |
+|---|---|---|
+| FTXUI 7.0.3 | your system's package, but only when exactly that version is installed — otherwise fetched from GitHub | nothing |
+| libmpdclient 2.26 | fetched from GitHub and built statically with Meson | nothing (Meson + Ninja, above) |
+| kissfft 131.2.0 | fetched from GitHub and linked statically | nothing |
+
+The first configure clones them into the build directory (`build/_deps/`), which
+is why it needs network access; later configures reuse what is already there. If
+you happen to have exactly FTXUI 7.0.3 packaged, CMake uses it instead of
+fetching a second copy — any other FTXUI version is ignored on purpose, because
+termusic is built and tested against 7.0.3.
+
+### Optional: build against the system libmpdclient
+
+For development against the distribution's libmpdclient (Debian/Ubuntu:
+`libmpdclient-dev`, Fedora: `libmpdclient-devel`):
+
+```bash
+cmake -S . -B build -DTERMUSIC_USE_SYSTEM_LIBMPDCLIENT=ON
+```
+
+This needs `pkg-config` (Fedora: `pkgconf-pkg-config`) and links
+`libmpdclient.so`, so the package must stay installed. The default build —
+the bundled, statically linked one — is what termusic is built and tested
+against, and it needs no libmpdclient at run time.
+
 ## Build and Run
+
+With the build dependencies installed:
 
 ```bash
 git clone https://github.com/magicptr/termusic.git
