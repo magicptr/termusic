@@ -27,13 +27,21 @@ sudo dnf install gcc-c++ cmake git meson ninja-build
 FTXUI、libmpdclient 和 kissfft 会在首次构建时自动下载并静态链接，无需单独安装对应的开发包。
 如果没有可连接的远程 MPD 服务，还需在本机安装并配置 `mpd`。
 
-## 克隆与使用
+## 克隆
 
 ```bash
 git clone https://github.com/magicptr/termusic.git
+```
+
+## 构建
+```bash
 cd termusic
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
 cmake --build build -j
+```
+
+## 运行
+```bash
 ./build/termusic
 ```
 
