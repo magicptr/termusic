@@ -67,34 +67,6 @@ On Debian and Ubuntu `build-essential` brings the compilers and `make` with it;
 on Fedora the compiler and `make` are their own packages (`gcc-c++`, `make`).
 Meson, Ninja, CMake and Git are the only other tools the build asks for.
 
-### What CMake downloads for you
-
-| component | how it is obtained | what you install |
-|---|---|---|
-| FTXUI 7.0.3 | your system's package, but only when exactly that version is installed — otherwise fetched from GitHub | nothing |
-| libmpdclient 2.26 | fetched from GitHub and built statically with Meson | nothing (Meson + Ninja, above) |
-| kissfft 131.2.0 | fetched from GitHub and linked statically | nothing |
-
-The first configure clones them into the build directory (`build/_deps/`), which
-is why it needs network access; later configures reuse what is already there. If
-you happen to have exactly FTXUI 7.0.3 packaged, CMake uses it instead of
-fetching a second copy — any other FTXUI version is ignored on purpose, because
-termusic is built and tested against 7.0.3.
-
-### Optional: build against the system libmpdclient
-
-For development against the distribution's libmpdclient (Debian/Ubuntu:
-`libmpdclient-dev`, Fedora: `libmpdclient-devel`):
-
-```bash
-cmake -S . -B build -DTERMUSIC_USE_SYSTEM_LIBMPDCLIENT=ON
-```
-
-This needs `pkg-config` (Fedora: `pkgconf-pkg-config`) and links
-`libmpdclient.so`, so the package must stay installed. The default build —
-the bundled, statically linked one — is what termusic is built and tested
-against, and it needs no libmpdclient at run time.
-
 ## Build and Run
 
 With the build dependencies installed:
