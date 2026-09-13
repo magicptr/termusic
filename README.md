@@ -72,3 +72,5 @@ termusic
 ```bash
 "$HOME/.local/bin/termusic"
 ```
+
+项目目前还在完善，如果在使用中有问题或有好的建议请[联系我](mailto:yiwithming@gmail.com)
