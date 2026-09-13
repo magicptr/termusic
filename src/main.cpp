@@ -18,7 +18,6 @@
 #include "extensions/plugin_manager.hpp"
 #include "ui/app.hpp"
 #include "ui/visualizer/palette.hpp"
-#include "ui/visualizer/renderer.hpp"
 #include "visualizer/analyzer.hpp"
 
 namespace {
@@ -75,7 +74,6 @@ void printUsage() {
          "  --list-plugins          list discovered plugins and exit\n"
          "  --icons nerd|unicode    icon set for terminals without a Nerd Font\n"
          "  --fifo PATH             MPD spectrum fifo for the visualizer\n"
-         "  --visualizer-style ID   classic-bars | waterfall | particles\n"
          "  --visualizer-palette ID theme | ice | fire | rainbow\n"
          "  --gap N                 gap between transport controls (0..4)\n"
          "  --slider braille|half|bg  slider renderer\n"
@@ -220,13 +218,6 @@ int main(int argc, char **argv) {
     } else if (argument == "--ui-script" &&
                readValue(argc, argv, &index, &value)) {
       ui_script = std::move(value);
-    } else if (argument == "--visualizer-style" &&
-               readValue(argc, argv, &index, &value)) {
-      // Same normalization as the configuration file: an unknown or removed
-      // identifier resolves to the canonical style instead of failing.
-      cli.visualizer_style = std::string(
-          termusic::ui::normalizeVisualizerStyleId(value));
-      cli.visualizer_style_set = true;
     } else if (argument == "--visualizer-palette" &&
                readValue(argc, argv, &index, &value)) {
       cli.visualizer_palette = std::string(
@@ -296,8 +287,6 @@ int main(int argc, char **argv) {
     config.transport_gap = cli.gap;
   if (cli.icons_set)
     config.icon_set = cli.icons;
-  if (cli.visualizer_style_set)
-    config.visualizer_style = cli.visualizer_style;
   if (cli.visualizer_palette_set)
     config.visualizer_palette = cli.visualizer_palette;
   if (cli.theme_directory_set)

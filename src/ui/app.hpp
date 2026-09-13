@@ -112,14 +112,13 @@ private:
 
   ftxui::Element renderRoot();
   ftxui::Element renderSettings();
-  /// The immersive visualizer: the active style's renderer, fed by the
-  /// shared spectrum/peak/beat model.
+  /// The immersive visualizer: the Spectrum, fed by the shared
+  /// spectrum/beat model.
   ftxui::Element renderImmersiveVisualizer();
-  /// Rebuilds the renderer only when the style or palette changes, never per
-  /// frame: architecture and window layout are stable for the session.
-  /// Builds (or rebuilds) the renderer for the configured style and palette.
+  /// Creates the renderer on first use. There is nothing to choose and nothing
+  /// to switch, so it is built once and then only handed frames.
   void ensureVisualizerRenderer();
-  /// The shared frame every style consumes: geometry + spectrum + peaks + beat.
+  /// The shared frame the renderer consumes: geometry + spectrum + beat.
   ui::VisualizerFrame visualizerFrame(const ui::VisualizerPalette &palette,
                                       double dt);
   /// The low-band onset aggregate over the last frame, for the beat detector.
@@ -218,15 +217,24 @@ private:
   bool songMatches(const Song &song, const std::string &needle) const;
   int findMatch(int from, int direction) const;
   void openSearchPrompt();
-  void commitSearchPrompt();
-  /// Where an open search looks: the pane it was opened from.
-  enum class SearchTarget { Tracks, Tree };
-  /// Re-runs the live query: moves the cursor to the first match at or after
-  /// the anchor, or puts it back on the anchor when nothing matches.
-  void applySearchQuery();
-  /// The first row of the TREE whose label matches, searching from `from`.
-  int findTreeMatch(int from, int direction) const;
-  bool treeNodeMatches(std::string_view label, std::string_view needle) const;
+  /// The FILTER: the original row indices of `activeTracks()` whose song
+  /// matches the live query, in list order. Only ever a view -- the list, the
+  /// playback context and the Tree are untouched.
+  void rebuildSearchRows();
+  /// Moves the result cursor inside the filtered view.
+  void moveSearchCursor(int delta);
+  /// Enter / click on a result: leaves search, restores the COMPLETE list and
+  /// puts the list cursor on the row the result came from. It never plays.
+  void jumpToSearchResult(int view_index);
+  /// Leaves search without selecting anything (Esc), restoring the list cursor
+  /// to where it was when the box opened.
+  void closeSearchPrompt();
+  /// The row of `activeTracks()` a position in the filtered view stands for.
+  int songIndexAt(int view_index) const;
+  /// True while the box is open with a query in it (the list is filtered).
+  bool searchActive() const { return search_prompt_ && !search_buffer_.empty(); }
+  /// The persistent query editor: created once, never per frame.
+  ftxui::Element renderSearchInput();
   bool collectionWritable() const;
   int deleteRange(int lo, int hi);
   void deleteVisualSelection();
@@ -342,15 +350,10 @@ private:
   /// First value seen for each key asserted with `expect-state-same`, so a
   /// script can pin a "this must not change" rule to the value it started with.
   std::map<std::string, std::string> script_baseline_;
-  /// THE visualizer: one renderer, chosen from the style registry. The
-  /// Application never branches on the style -- it hands the renderer the
-  /// shared frame (spectrum, peaks, beat, grid geometry, palette) and draws
-  /// what comes back.
+  /// THE visualizer: the Spectrum, and the only renderer there is. The
+  /// Application never branches on it -- it hands the renderer the shared frame
+  /// (spectrum, beat, grid geometry, palette) and draws what comes back.
   std::unique_ptr<ui::VisualizerRenderer> visualizer_;
-  /// The style and palette the renderer was built for, so a config change
-  /// rebuilds it exactly once.
-  std::string visualizer_style_;
-  std::string visualizer_palette_;
   /// The beat envelope. Persistence for the animation, never geometry.
   BeatState beat_;
   /// The low-band energy of the last rendered frame, reported by the script
@@ -501,20 +504,29 @@ private:
   bool playlist_prompt_ = false;
   std::string playlist_prompt_text_;
 
-  // --- Phase 45: buffer search and entry deletion ---------------------------
-  /// `/` input. Incremental: every keystroke moves the cursor to the first
-  /// match, and the visible table is never filtered (rows keep their identity,
-  /// so the playing marker and the collections stay truthful).
+  // --- Buffer search: the RIGHT list only, filtered -------------------------
+  /// `/` input. The box filters the right pane's list and locates a row in it:
+  /// it never touches the Tree, the collections or the playback context.
   bool search_prompt_ = false;
   std::string search_buffer_;
-  /// The accepted pattern that `n` / `N` walk.
+  /// The accepted pattern that `n` / `N` walk after the box closes.
   std::string search_pattern_;
-  /// Which pane the open search looks at, and where the cursor was when it
-  /// opened -- Esc puts it back there.
-  SearchTarget search_target_ = SearchTarget::Tracks;
+  /// Where the list cursor was when the box opened -- Esc puts it back there.
   int search_anchor_ = 0;
-  /// True when the live query matches nothing: the box turns Red.
+  /// True when the live query matches nothing: the box turns Red and the pane
+  /// says so instead of showing the list.
   bool search_no_match_ = false;
+  /// The filtered VIEW: original row indices into `activeTracks()`. Empty when
+  /// no query is active; never a copy of the songs themselves, so a result
+  /// knows exactly which occurrence it stands for.
+  std::vector<int> search_rows_;
+  /// The result cursor and its viewport, in view positions. Separate from
+  /// `track_cursor_` / `track_scroll_`, which keep the real list position.
+  int search_cursor_ = 0;
+  int search_scroll_ = 0;
+  /// The query editor. FTXUI's Input, created ONCE: it owns the caret, the
+  /// UTF-8 editing and the terminal cursor the IME anchors to.
+  ftxui::Component search_input_;
   /// Which collection the Track Buffer currently shows, for write decisions:
   /// the open saved playlist's own name (identified by node id), or nothing for
   /// the media database and History.
@@ -564,6 +576,11 @@ private:
   std::atomic<bool> quitting_{false};
   std::jthread ticker_thread_;
   std::atomic<bool> ticker_fast_{false};
+  /// True while the SEARCH LINE owns the keyboard. The analyzer thread reads it
+  /// to stop requesting a repaint per analysed frame: the spectrum is not on
+  /// screen then, and a repaint storm under an active IME is exactly what makes
+  /// the composition and the candidate window flicker.
+  std::atomic<bool> search_typing_{false};
 };
 
 } // namespace termusic::ui

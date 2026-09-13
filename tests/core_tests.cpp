@@ -1215,7 +1215,7 @@ int main() {
   config.seek_step = 9;
   config.mpd_host = "musicbox";
   config.visualizer_fifo = "/tmp/test-mpd.fifo";
-  config.theme_name = "nord";
+  config.theme_name = "monokai-pro";
   config.plugins_enabled = false;
   config.plugin_directory = "/tmp/termusic-plugins";
   config.plugin_settings["lyrics"]["provider"] = "local";
@@ -1229,7 +1229,7 @@ int main() {
   assert(loaded.seek_step == 9);
   assert(loaded.mpd_host == "musicbox");
   assert(loaded.visualizer_fifo == "/tmp/test-mpd.fifo");
-  assert(loaded.theme_name == "nord");
+  assert(loaded.theme_name == "monokai-pro");
   assert(!loaded.plugins_enabled);
   assert(loaded.plugin_directory == "/tmp/termusic-plugins");
   assert(loaded.plugin_settings.at("lyrics").at("provider") == "local");
@@ -1286,8 +1286,10 @@ int main() {
       assert(parsed.auto_reconnect == defaults.auto_reconnect);
       assert(parsed.theme_name == defaults.theme_name);
       assert(parsed.icon_set == defaults.icon_set);
-      assert(parsed.visualizer_enabled == defaults.visualizer_enabled);
-      assert(parsed.visualizer_style == defaults.visualizer_style);
+      // `visualizer.style` and `visualizer.enabled` no longer exist: the
+      // Spectrum is the only visualizer and the display mode decides whether it
+      // is shown, so a stored value for either is read and ignored. The keys
+      // that remain must still round-trip.
       assert(parsed.visualizer_palette == defaults.visualizer_palette);
       assert(parsed.visualizer_refresh_hz == defaults.visualizer_refresh_hz);
       assert(parsed.visualizer_bar_density == defaults.visualizer_bar_density);
@@ -1309,12 +1311,12 @@ int main() {
              "[future_section]\n"
              "shiny = \"yes\"\n"
              "count = 3\n"
-             "[appearance]\ntheme = \"nord\"\n";
+             "[appearance]\ntheme = \"catppuccin-macchiato\"\n";
       out.close();
       ConfigStore local_store(file);
       Config load = local_store.load();
       assert(load.mpd_port == 6601);
-      assert(load.theme_name == "nord");
+      assert(load.theme_name == "catppuccin-macchiato");
       assert(load.preserved.size() == 3U);
       load.seek_step = 11; // an unrelated change, as Core would make
       std::string save_error;
@@ -1322,7 +1324,7 @@ int main() {
       Config again = local_store.load();
       assert(again.seek_step == 11);
       assert(again.mpd_port == 6601);
-      assert(again.theme_name == "nord");
+      assert(again.theme_name == "catppuccin-macchiato");
       assert(again.preserved.size() == 3U);
       bool kept_mpd = false;
       bool kept_section = false;
@@ -1572,16 +1574,19 @@ int main() {
   }
 
   ui::ThemeRegistry themes;
-  assert(themes.list().size() >= 2U);
+  assert(themes.list().size() == 7U);
   // Catppuccin Mocha is the default theme, and it is registered first so that
-  // an unknown or legacy id resolves to it. Nord must survive untouched.
+  // an unknown or legacy id (an old `theme = "nord"` configuration included)
+  // resolves to it.
   assert(themes.resolveId("missing") == "catppuccin-mocha");
   assert(themes.resolveId("default") == "catppuccin-mocha");
-  assert(themes.nextId("catppuccin-mocha") == "nord");
-  assert(themes.nextId("nord") == "catppuccin-mocha");
+  assert(themes.resolveId("nord") == "catppuccin-mocha");
+  // The cycle walks the registration order and wraps at the end.
+  assert(themes.nextId("catppuccin-mocha") == "kanagawa");
+  assert(themes.nextId("catppuccin-macchiato") == "catppuccin-mocha");
   {
     const ui::Theme &mocha = themes.resolve("catppuccin-mocha");
-    const ui::Theme &nord = themes.resolve("nord");
+    const ui::Theme &kanagawa = themes.resolve("kanagawa");
     // A few load-bearing Mocha values, asserted against the official palette.
     assert(mocha.background == ftxui::Color::RGB(0x1E, 0x1E, 0x2E)); // Base
     assert(mocha.background_deep == ftxui::Color::RGB(0x11, 0x11, 0x1B)); // Crust
@@ -1598,11 +1603,11 @@ int main() {
     assert(mocha.tree_cursor_bg != mocha.track_cursor_bg);
     // The active-collection marker and the playing marker stay distinguishable.
     assert(mocha.active_collection != mocha.playing);
-    // Nord keeps its own palette rather than inheriting Mocha values.
-    assert(nord.background == ftxui::Color::RGB(0x2E, 0x34, 0x40));
-    assert(nord.background != mocha.background);
-    assert(nord.text != mocha.text);
-    assert(nord.border != mocha.border);
+    // Kanagawa keeps its own palette rather than inheriting Mocha values.
+    assert(kanagawa.background == ftxui::Color::RGB(0x1F, 0x1F, 0x28));
+    assert(kanagawa.background != mocha.background);
+    assert(kanagawa.text != mocha.text);
+    assert(kanagawa.border != mocha.border);
   }
 
   extensions::ExtensionRegistry extensions;
@@ -1674,9 +1679,12 @@ int main() {
       assert((c >= '0' && c <= '9') || c == '-' || c == ' ' || c == ':');
   }
 
-  // --- Round 53: Core section kinds ----------------------------------------
+  // --- Core section kinds AND order ----------------------------------------
   // The tree's children carry their semantic kind in the MODEL, so the renderer
-  // maps a kind to an icon and never looks a section up by name.
+  // maps a kind to an icon and never looks a section up by name. The ORDER of
+  // kCoreSections is the order of the tree and of the panes: frequently used
+  // configuration first, the two read-only pages last, and no Connection entry
+  // (the MPD server settings belong to General).
   {
     int information = 0;
     int settings = 0;
@@ -1686,13 +1694,32 @@ int main() {
       else
         ++settings;
     }
-    assert(information == 1 && "Help is the one information section");
-    assert(settings == static_cast<int>(kCoreSections.size()) - 1);
-    // The one information entry is the Help module, named by ID (not by label
-    // text), and every other entry is a settings module.
+    assert(information == 2 && "About and Help are the information sections");
+    assert(settings == static_cast<int>(kCoreSections.size()) - 2);
+    // Each entry's `section` index must equal its position, because the tree
+    // row and the pane are wired through that index.
+    for (std::size_t index = 0; index < kCoreSections.size(); ++index) {
+      assert(kCoreSections[index].section == static_cast<int>(index));
+    }
+    // The canonical order, by stable id.
+    const std::array<std::string_view, 6> expected_order = {
+        "core:general", "core:appearance", "core:keybindings",
+        "core:plugins", "core:about",    "core:help"};
+    for (std::size_t index = 0; index < expected_order.size(); ++index) {
+      assert(kCoreSections[index].id == expected_order[index]);
+    }
+    // General is first, Help is last, and nothing is called Connection.
+    assert(kCoreSections.front().id == "core:general");
+    assert(kCoreSections.back().id == "core:help");
     for (const ConfigFileEntry &entry : kCoreSections) {
-      const bool help = entry.id == "core:help";
-      assert((entry.kind == CoreSectionKind::Information) == help);
+      assert(entry.id != "core:connection");
+      assert(entry.label != "Connection");
+    }
+    // The two information entries are About and Help, named by ID (not by
+    // label text); every other entry is a settings module.
+    for (const ConfigFileEntry &entry : kCoreSections) {
+      const bool document = entry.id == "core:help" || entry.id == "core:about";
+      assert((entry.kind == CoreSectionKind::Information) == document);
     }
     // The tree copies the kind onto the nodes it builds, which is what the
     // renderer reads. `core` starts collapsed, so the root is expanded first --
@@ -1708,14 +1735,54 @@ int main() {
       if (node.type != termusic::TreeNodeType::CoreSection)
         continue;
       ++children;
-      const bool help = node.id == "core:help";
-      assert(help || node.core_kind == CoreSectionKind::Settings);
-      if (help)
+      // The tree must present them in the SAME order as the registry.
+      assert(node.id == kCoreSections[static_cast<std::size_t>(children - 1)].id);
+      const bool document = node.id == "core:help" || node.id == "core:about";
+      assert(document || node.core_kind == CoreSectionKind::Settings);
+      if (document)
         assert(node.core_kind == CoreSectionKind::Information);
     }
     assert(children == static_cast<int>(kCoreSections.size()));
     std::cout << "core: " << information << " information + " << settings
               << " settings sections, kinds carried by the tree nodes\n";
+  }
+
+  // --- Built-in themes -----------------------------------------------------
+  // The registry IS the Appearance -> Theme list: its order is the order the
+  // choice offers, the first entry is the default, and an unknown id (an old
+  // configuration that still says "nord", for instance) falls back to it.
+  {
+    termusic::ui::ThemeRegistry builtins;
+    const auto list = builtins.list();
+    assert(list.size() == 7);
+    const std::array<std::string_view, 7> expected = {
+        "catppuccin-mocha", "kanagawa", "material-palenight", "monokai-pro",
+        "github-dark",      "oxocarbon", "catppuccin-macchiato"};
+    for (std::size_t index = 0; index < expected.size(); ++index) {
+      assert(list[index].id == expected[index]);
+      assert(!list[index].name.empty());
+    }
+    for (const termusic::ui::ThemeInfo &info : list)
+      assert(info.id != "nord");
+    // The default theme is the FIRST entry, and it is what an unknown id
+    // resolves to -- the fallback that keeps an old `theme = "nord"` config
+    // working without a migration.
+    assert(builtins.resolveId("catppuccin-mocha") == "catppuccin-mocha");
+    assert(builtins.resolveId("nord") == "catppuccin-mocha");
+    assert(builtins.resolveId("no-such-theme") == "catppuccin-mocha");
+    for (const std::string_view id : expected) {
+      const termusic::ui::Theme &theme = builtins.resolve(std::string(id));
+      // Every built-in must define its own focus/active pair: the focus band
+      // and the active-collection tint are never the same colour, and neither
+      // is left at another palette's default.
+      assert(theme.tree_cursor_bg != theme.active_collection);
+    }
+    const termusic::ui::Theme &legacy = builtins.resolve("nord");
+    const termusic::ui::Theme &fallback_mocha =
+        builtins.resolve("catppuccin-mocha");
+    assert(legacy.tree_cursor_bg == fallback_mocha.tree_cursor_bg);
+    std::cout << "themes: " << list.size()
+              << " built-ins, default catppuccin-mocha, unknown id falls back\n";
   }
 
   // --- Icons ---------------------------------------------------------------

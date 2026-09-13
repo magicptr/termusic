@@ -1,0 +1,65 @@
+# Uninstall the files that THIS build directory installed.
+#
+#     cmake --build <build-dir> --target uninstall
+#
+# `cmake --install` records every file it wrote in install_manifest.txt, next to
+# the build directory this script was generated into. That manifest is the ONLY
+# source of truth here: each recorded path is removed individually, and nothing
+# else is looked at. There is no directory scan, no name-pattern match and no
+# directory tree removal, so another application's files in the same prefix --
+# and the prefix's own directories -- are never touched.
+#
+# DESTDIR is honoured exactly as the installer honoured it, which is what makes
+# a staged install (`DESTDIR=/tmp/root cmake --install <build-dir>`) removable
+# with the same DESTDIR.
+#
+# This file is a template: configure_file() substitutes the build directory in
+# CMakeLists.txt, so the generated script always reads the manifest of the build
+# tree it belongs to. It is never meant to be run by hand.
+
+set(_manifest "@CMAKE_CURRENT_BINARY_DIR@/install_manifest.txt")
+
+if(NOT EXISTS "${_manifest}")
+  message(FATAL_ERROR
+    "Cannot find install_manifest.txt in @CMAKE_CURRENT_BINARY_DIR@, so there "
+    "is no record of what was installed and NOTHING was removed.\n"
+    "Run `cmake --install <build-dir>` first, and run the uninstall target from "
+    "the SAME build directory: only the directory that performed an install "
+    "knows which files belong to it.")
+endif()
+
+file(STRINGS "${_manifest}" _installed)
+list(LENGTH _installed _recorded)
+message(STATUS "Uninstalling ${_recorded} file(s) recorded in ${_manifest}")
+
+set(_removed 0)
+set(_already_gone 0)
+set(_failed "")
+
+foreach(_file IN LISTS _installed)
+  set(_target "$ENV{DESTDIR}${_file}")
+  if(IS_SYMLINK "${_target}" OR EXISTS "${_target}")
+    file(REMOVE "${_target}")
+    # file(REMOVE) is silent about failure, so the result is checked here rather
+    # than assumed: a file that survives is reported, never hunted for.
+    if(IS_SYMLINK "${_target}" OR EXISTS "${_target}")
+      list(APPEND _failed "${_target}")
+    else()
+      message(STATUS "Removed ${_target}")
+      math(EXPR _removed "${_removed} + 1")
+    endif()
+  else()
+    message(STATUS "Already gone: ${_target}")
+    math(EXPR _already_gone "${_already_gone} + 1")
+  endif()
+endforeach()
+
+if(_failed)
+  message(FATAL_ERROR
+    "Could not remove:\n  ${_failed}\n"
+    "Nothing else was touched. Check the permissions of these files.")
+endif()
+
+message(STATUS
+  "Uninstall complete: ${_removed} file(s) removed, ${_already_gone} already "
+  "gone. Directories are left in place: termusic never removes a directory.")

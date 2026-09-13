@@ -7,7 +7,7 @@ namespace termusic {
 namespace {
 
 /// The tempo/onset constants. They are deliberately conservative: a missed
-/// beat is invisible, a false one makes the city twitch on noise.
+/// beat is invisible, a false one makes the axis twitch on noise.
 constexpr double kOnsetRatio = 1.35;    // energy above this share of baseline
 constexpr double kOnsetFloor = 0.04;    // ... and above this absolute level
 constexpr double kRefractory = 0.15;    // s; ignores double triggers per hit

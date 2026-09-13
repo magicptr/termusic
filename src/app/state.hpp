@@ -58,16 +58,23 @@ struct ConfigFileEntry {
   CoreSectionKind kind = CoreSectionKind::Settings;
 };
 
+/// The order here IS the order of the tree AND the order of the panes:
+/// frequently used configuration first (General, Appearance, Keybindings),
+/// then extension management (Plugins), then the two read-only pages
+/// (About, Help). The MPD server settings are part of General -- there is no
+/// separate Connection entry.
 inline constexpr std::array<ConfigFileEntry, 6> kCoreSections = {{
-    {"core:help", "Help", 0, "how to use termusic", CoreSectionKind::Information},
-    {"core:connection", "Connection", 1, "MPD server", CoreSectionKind::Settings},
-    {"core:general", "General", 2, "startup, seek and volume steps",
+    {"core:general", "General", 0, "startup, steps and the MPD server",
      CoreSectionKind::Settings},
-    {"core:appearance", "Appearance", 3, "theme and visualizer",
+    {"core:appearance", "Appearance", 1, "theme and visualizer",
      CoreSectionKind::Settings},
-    {"core:keybindings", "Keybindings", 4, "key bindings",
+    {"core:keybindings", "Keybindings", 2, "key bindings",
      CoreSectionKind::Settings},
-    {"core:plugins", "Plugins", 5, "extensions", CoreSectionKind::Settings},
+    {"core:plugins", "Plugins", 3, "extensions", CoreSectionKind::Settings},
+    {"core:about", "About", 4, "version and credits",
+     CoreSectionKind::Information},
+    {"core:help", "Help", 5, "how to use termusic",
+     CoreSectionKind::Information},
 }};
 
 /// Navigation label and the config token used to persist a page.
@@ -230,7 +237,6 @@ struct LibraryState {
 /// Spectrum data. Phase 1-4 leaves the bars at zero: faking them with random
 /// or sine values is explicitly forbidden (§10.2, §19).
 struct VisualizerState {
-  bool enabled = true;
   std::vector<float> bars;  // Normalised 0..1 target per band.
   std::vector<float> peaks; // Peak-hold overlay per band.
   /// Motion state. `position` is what the renderer draws; `velocity` carries

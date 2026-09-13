@@ -94,15 +94,10 @@ public:
   void setStartPage(Page page);
   /// [general] stop_on_exit: whether quitting also stops MPD playback.
   void setStopOnExit(bool stop);
-  void setVisualizerEnabled(bool enabled);
   void setVisualizerSensitivity(float sensitivity);
   void setVisualizerRefreshHz(int refresh_hz);
   void setVisualizerDensity(int density);
-  /// Selects the active visualizer style by registry id. The id is normalized
-  /// here as well as on load, so the stored value is always one a renderer
-  /// exists for.
-  void setVisualizerStyle(const std::string &style);
-  /// Selects the colour ramp. Independent of the style.
+  /// Selects the colour ramp the Spectrum is drawn in.
   void setVisualizerPalette(const std::string &palette);
   /// Core -> Connection's "Save and reconnect": the ONE place that persists an
   /// endpoint, because the user typed it and pressed the button.

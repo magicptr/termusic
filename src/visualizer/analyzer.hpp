@@ -77,9 +77,11 @@ public:
   std::size_t allocatedBandCount() const { return allocated_bands_; }
   /// Reallocations of the companion containers; one per real band-count change.
   std::size_t bandStateResets() const { return band_state_resets_; }
-#ifndef NDEBUG
+#ifdef TERMUSIC_TEST_HOOKS
   /// Deliberately breaks the companion invariant so a test can prove the
-  /// detector notices it. Never called by production code.
+  /// detector notices it. Never called by production code, and only compiled
+  /// when the tests are built: a release build with BUILD_TESTING=ON must link
+  /// them without turning the analyzer's own assertions on.
   void debugCorruptCompanion();
 #endif
 

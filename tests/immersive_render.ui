@@ -1,32 +1,32 @@
 # The immersive renderer, end to end, with a spectrum but no audio hardware:
 # `--ui-visualizer-motion-test` fills the same 96-band motion vector the
-# analyzer fills, so the ACTIVE style reads a real spectrum of the canonical
-# width.
+# analyzer fills, so the Spectrum reads a real spectrum of the canonical width.
 #
-# The assertions are deliberately thin -- the geometry is covered by
-# termusic_visualizer_layout and the styles and their state by
-# termusic_visualizer_styles. What this file adds is that the renderer runs at
-# several sizes without reading past the end of the spectrum: in a build with
-# library assertions on (the debug build), an out-of-range index aborts the
-# process and the test fails.
+# The assertions are deliberately thin -- the layout is covered by
+# termusic_visualizer_layout and the renderer by termusic_visualizer. What this
+# file adds is that the Spectrum runs at several sizes without reading past the
+# end of the spectrum: in a build with library assertions on (the debug build),
+# an out-of-range index aborts the process and the test fails. The mirrored
+# geometry is asserted too: the baseline is the drawable centre at every size,
+# and the reflection never eats the Player Bar.
 size 150x44
 load
 key i
 sleep 0.4
 state
-expect-state vizStyle=classic-bars
+expect-state viz=spectrum
 dump
 
 size 110x32
 sleep 0.2
 state
-expect-state vizStyle=classic-bars
+expect-state viz=spectrum
 dump
 
 size 78x24
 sleep 0.2
 state
-expect-state vizStyle=classic-bars
+expect-state viz=spectrum
 dump
 
 # Back to the widest size, then out: the renderer must survive a resize back
@@ -34,5 +34,5 @@ dump
 size 150x44
 sleep 0.2
 state
-expect-state vizStyle=classic-bars
+expect-state viz=spectrum
 dump

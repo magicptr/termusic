@@ -4,7 +4,7 @@
 #include <poll.h>
 #include <unistd.h>
 
-#include <fftw3.h>
+#include <kiss_fftr.h>
 
 #include <algorithm>
 #include <cassert>
@@ -21,25 +21,23 @@ constexpr std::size_t kFftSize = 2048;
 
 struct VisualizerAnalyzer::FftPlan {
   FftPlan() {
-    input = static_cast<float *>(fftwf_malloc(sizeof(float) * kFftSize));
-    output = static_cast<fftwf_complex *>(
-        fftwf_malloc(sizeof(fftwf_complex) * (kFftSize / 2U + 1U)));
-    if (input != nullptr && output != nullptr) {
-      plan = fftwf_plan_dft_r2c_1d(static_cast<int>(kFftSize), input, output,
-                                   FFTW_ESTIMATE);
+    // One real-to-complex transform of kFftSize samples. The plan and both
+    // buffers are created once, here, and reused by every analysis frame.
+    cfg = kiss_fftr_alloc(static_cast<int>(kFftSize), 0, nullptr, nullptr);
+    if (cfg != nullptr) {
+      input.resize(kFftSize);
+      output.resize(kFftSize / 2U + 1U);
     }
   }
 
   ~FftPlan() {
-    if (plan != nullptr)
-      fftwf_destroy_plan(plan);
-    fftwf_free(output);
-    fftwf_free(input);
+    if (cfg != nullptr)
+      kiss_fftr_free(cfg);
   }
 
-  float *input = nullptr;
-  fftwf_complex *output = nullptr;
-  fftwf_plan plan = nullptr;
+  kiss_fftr_cfg cfg = nullptr;
+  std::vector<float> input;
+  std::vector<kiss_fft_cpx> output;
 };
 
 VisualizerAnalyzer::VisualizerAnalyzer()
@@ -120,7 +118,7 @@ void VisualizerAnalyzer::analyzePcm(
   const std::size_t channels = static_cast<std::size_t>(channels_);
   if (interleaved_samples.size() < kFftSize * channels)
     return;
-  if (fft_plan_ == nullptr || fft_plan_->plan == nullptr)
+  if (fft_plan_ == nullptr || fft_plan_->cfg == nullptr)
     return;
 
   for (std::size_t frame = 0; frame < kFftSize; ++frame) {
@@ -136,7 +134,8 @@ void VisualizerAnalyzer::analyzePcm(
                                static_cast<float>(kFftSize - 1U));
     fft_plan_->input[frame] = mono * window;
   }
-  fftwf_execute(fft_plan_->plan);
+  kiss_fftr(fft_plan_->cfg, fft_plan_->input.data(),
+            fft_plan_->output.data());
 
   std::vector<float> levels(static_cast<std::size_t>(bands_), 0.0F);
   const float nyquist = static_cast<float>(sample_rate_) / 2.0F;
@@ -161,12 +160,12 @@ void VisualizerAnalyzer::analyzePcm(
         low_bin + 1U, kFftSize / 2U);
     float power = 0.0F;
     for (std::size_t bin = low_bin; bin < high_bin; ++bin) {
-      const float real = fft_plan_->output[bin][0];
-      const float imaginary = fft_plan_->output[bin][1];
+      const float real = fft_plan_->output[bin].r;
+      const float imaginary = fft_plan_->output[bin].i;
       power += real * real + imaginary * imaginary;
     }
     power /= static_cast<float>(high_bin - low_bin);
-    // FFTW output is unnormalised. Restore an approximate signal amplitude
+    // The transform is unnormalised. Restore an approximate signal amplitude
     // and apply a soft knee so loud input keeps moving instead of clipping.
     const float amplitude =
         std::sqrt(power) * (2.0F / static_cast<float>(kFftSize)) *
@@ -180,8 +179,13 @@ void VisualizerAnalyzer::analyzePcm(
     const float normalized =
         std::clamp((db - kNoiseFloorDb) / (kCeilingDb - kNoiseFloorDb), 0.0F,
                    1.0F);
+    // The exponent is deliberately close to 1: the dB range below is already a
+    // log scale, and the < 1 curve this used to use lifted every quiet band up
+    // toward the loud ones, which is what flattened the contour. At ~1 a band
+    // keeps the position its level earns.
+    constexpr float kLevelCurve = 0.95F;
     levels[static_cast<std::size_t>(band)] =
-        std::pow(normalized, 0.62F);
+        std::pow(normalized, kLevelCurve);
   }
 
   // Slow adaptive gain: track a high percentile of the frame and normalise
@@ -200,7 +204,7 @@ void VisualizerAnalyzer::analyzePcm(
     return sorted[index];
   };
   const float frame_peak = percentile(0.95F);
-  running_peak_ = std::max(frame_peak, running_peak_ * 0.995F);
+  running_peak_ = std::max(frame_peak, running_peak_ * 0.992F);
   const float gain = 1.0F / std::max(0.30F, running_peak_);
   for (float &level : levels)
     level = std::clamp(level * gain, 0.0F, 1.0F);
@@ -257,7 +261,7 @@ bool VisualizerAnalyzer::companionSizesConsistent() const {
          peak_hold_.size() == allocated_bands_;
 }
 
-#ifndef NDEBUG
+#ifdef TERMUSIC_TEST_HOOKS
 void VisualizerAnalyzer::debugCorruptCompanion() {
   std::scoped_lock lock(mutex_);
   // Simulates the Round 17 defect: one companion silently emptied while the

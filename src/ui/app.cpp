@@ -770,6 +770,22 @@ void Application::buildComponents() {
       {shuffle_button_, previous_button_, play_button_, next_button_});
 
   modal_input_ = Input(&modal_text_, "playlist name");
+  // The search line: ONE persistent FTXUI Input. It owns the caret, the UTF-8
+  // editing (backspace and Delete work on CODEPOINTS, never bytes) and, through
+  // FTXUI's focus/cursor path, the terminal cursor -- which is where a terminal
+  // IME anchors its preedit and its candidate window. It is created here, once,
+  // and never rebuilt: a redraw only re-renders its element.
+  {
+    InputOption search_option;
+    search_option.placeholder = "";
+    search_option.multiline = false;
+    search_option.on_change = [this] {
+      // Live filtering: the query changed, so the view does.
+      rebuildSearchRows();
+      screen_.PostEvent(Event::Custom);
+    };
+    search_input_ = Input(&search_buffer_, search_option);
+  }
   auto target_option = styledMenu(theme_);
   target_option.on_enter = [this] { confirmModal(); };
   playlist_target_menu_ =
@@ -793,6 +809,10 @@ void Application::startBackendEvents() {
 
 void Application::configureVisualizer() {
   analyzer_.stop();
+  // The Spectrum is the display, so a reconfiguration always ends with the
+  // analyzer running: there is no "off" mode to fall back to.
+  if (visualizer_ != nullptr)
+    visualizer_->reset();
   if (state_.demo) {
     // Reference mode: keep the fixed reference shape for reproducible frames.
     loadReferenceSpectrum(
@@ -807,16 +827,21 @@ void Application::configureVisualizer() {
   state_.visualizer.peaks.assign(
       static_cast<std::size_t>(config.visualizer_bar_density), 0.0F);
   state_.visualizer.data_available = false;
-  if (!config.visualizer_enabled)
-    return;
   analyzer_.start(
       config.visualizer_fifo, config.visualizer_sample_rate,
       config.visualizer_channels, config.visualizer_bar_density,
       config.visualizer_sensitivity, config.visualizer_refresh_hz,
       // The callback only asks for a repaint; the spectrum itself is pulled by
       // the UI (see syncVisualizerSpectrum), so `state_.visualizer` has exactly
-      // one writer and does not depend on the event loop being pumped.
-      [this] { screen_.Post([this] { screen_.PostEvent(Event::Custom); }); });
+      // one writer and does not depend on the event loop being pumped. While
+      // the search line owns the keyboard the request is SKIPPED -- the
+      // analysis continues, but the screen is a static list, and repainting it
+      // once per analysed frame is what thrashes an IME's composition.
+      [this] {
+        if (search_typing_.load())
+          return;
+        screen_.Post([this] { screen_.PostEvent(Event::Custom); });
+      });
   analyzer_.setPlaybackActive(state_.player.state == PlaybackState::Playing);
 }
 
@@ -825,10 +850,14 @@ void Application::startTicker() {
   // playing it runs fast enough (~30 FPS) that the interpolated thumb glides
   // instead of stepping once per second. When nothing is moving it drops to
   // 4 FPS so an idle player stays cheap.
+  // While the search line owns the keyboard the screen is a static list, and
+  // repainting it 30 times a second is exactly what makes a terminal IME's
+  // composition flicker. The fast rate is therefore suspended for as long as
+  // the box is open; closing it brings the animation straight back.
   ticker_fast_.store(
-      state_.player.state == PlaybackState::Playing || state_.demo ||
-      ui_slider_test_ || motion_test_ ||
-      (state_.visualizer.enabled && state_.visualizer.data_available));
+      !search_prompt_ &&
+      (state_.player.state == PlaybackState::Playing || state_.demo ||
+       ui_slider_test_ || motion_test_ || state_.visualizer.data_available));
   ticker_thread_ = std::jthread([this](std::stop_token stop) {
     std::unique_lock lock(ticker_mutex_);
     while (!stop.stop_requested()) {
@@ -1961,158 +1990,131 @@ int Application::findMatch(int from, int direction) const {
   return -1;
 }
 
-bool Application::treeNodeMatches(std::string_view label,
-                                  std::string_view needle) const {
-  if (needle.empty())
-    return false;
-  const auto fold = [](std::string value) {
-    for (char &c : value) {
-      if (c >= 'A' && c <= 'Z')
-        c = static_cast<char>(c - 'A' + 'a');
-    }
-    return value;
-  };
-  return fold(std::string(label)).find(fold(std::string(needle))) !=
-         std::string::npos;
-}
-
-int Application::findTreeMatch(int from, int direction) const {
-  const auto &rows = workspace_tree_.visible();
-  const int count = static_cast<int>(rows.size());
-  if (count == 0 || search_buffer_.empty() || direction == 0)
-    return -1;
-  for (int step = 1; step <= count; ++step) {
-    const int index = ((from + direction * step) % count + count) % count;
-    if (treeNodeMatches(rows[static_cast<std::size_t>(index)].label,
-                        search_buffer_))
-      return index;
-  }
-  return -1;
-}
-
 void Application::openSearchPrompt() {
   search_prompt_ = true;
+  search_typing_.store(true);
   visual_message_.clear();
   // A fresh query. The previous pattern stays available to `n` / `N` if the
   // user cancels, but it is not prefilled into the new one.
   search_buffer_.clear();
   search_no_match_ = false;
-  // The box searches the pane it was opened from, and Esc puts the cursor
-  // back exactly where it was.
-  search_target_ = workspace_pane_ == WorkspacePane::Tree ? SearchTarget::Tree
-                                                          : SearchTarget::Tracks;
-  search_anchor_ =
-      search_target_ == SearchTarget::Tree ? workspace_tree_.cursor()
-                                           : track_cursor_;
+  // The box filters the RIGHT pane's list -- there is one scope and no target
+  // to choose. The keyboard moves to that list (the box owns it, but the pane
+  // is what the result cursor belongs to), and the Tree is left exactly as it
+  // was: same cursor, same expansion, same active collection.
+  search_anchor_ = track_cursor_;
+  workspace_pane_ = WorkspacePane::TrackList;
+  rebuildSearchRows();
   screen_.PostEvent(Event::Custom);
 }
 
-void Application::applySearchQuery() {
-  // Incremental search: the cursor follows the query as it is typed, so the
-  // result is visible before Enter is pressed. The list itself is never
-  // filtered -- rows keep their identity, which is what keeps the playing
-  // marker, the collections and the playback context truthful.
-  if (search_target_ == SearchTarget::Tree) {
-    if (search_buffer_.empty()) {
-      workspace_tree_.setCursor(search_anchor_);
-      search_no_match_ = false;
-      autoLoadTreeCursor();
-      return;
-    }
-    const int match = findTreeMatch(search_anchor_ - 1, 1);
-    search_no_match_ = match < 0;
-    workspace_tree_.setCursor(match < 0 ? search_anchor_ : match);
-    autoLoadTreeCursor();
-    return;
-  }
+void Application::rebuildSearchRows() {
+  search_rows_.clear();
+  search_cursor_ = 0;
+  search_scroll_ = 0;
   const std::vector<Song> &songs = activeTracks();
-  if (search_buffer_.empty() || songs.empty()) {
-    track_cursor_ = search_anchor_;
+  if (search_buffer_.empty()) {
+    // An empty query is not a filter: the complete list stays visible while the
+    // box is still open and still typing.
     search_no_match_ = false;
     return;
   }
-  const std::string saved = search_pattern_;
+  // The matcher reads `search_pattern_`; the live query is used without
+  // disturbing the accepted one that `n` / `N` walk.
+  const std::string accepted = search_pattern_;
   search_pattern_ = search_buffer_;
-  const int match = findMatch(search_anchor_ - 1, 1);
-  search_pattern_ = saved;
-  search_no_match_ = match < 0;
-  track_cursor_ = match < 0 ? search_anchor_ : match;
+  for (std::size_t index = 0; index < songs.size(); ++index) {
+    if (songMatches(songs[index], search_pattern_))
+      search_rows_.push_back(static_cast<int>(index));
+  }
+  search_pattern_ = accepted;
+  search_no_match_ = search_rows_.empty();
+  // Start on the first result at or after where the list cursor was, so a
+  // search from the middle of a long list does not jump backwards; when there
+  // is none, the first result.
+  for (std::size_t view = 0; view < search_rows_.size(); ++view) {
+    if (search_rows_[view] >= search_anchor_) {
+      search_cursor_ = static_cast<int>(view);
+      break;
+    }
+  }
+}
+
+int Application::songIndexAt(int view_index) const {
+  if (searchActive() && view_index >= 0 &&
+      view_index < static_cast<int>(search_rows_.size()))
+    return search_rows_[static_cast<std::size_t>(view_index)];
+  return view_index;
+}
+
+void Application::moveSearchCursor(int delta) {
+  const int count = static_cast<int>(search_rows_.size());
+  if (count <= 0 || delta == 0)
+    return;
+  search_cursor_ = std::clamp(search_cursor_ + delta, 0, count - 1);
+  screen_.PostEvent(Event::Custom);
+}
+
+void Application::jumpToSearchResult(int view_index) {
+  // The result knows WHICH occurrence it is: the view stores original row
+  // indices, so duplicate titles can never confuse the two. Nothing else
+  // changes -- no play, no queue, no context, no collection.
+  if (view_index < 0 || view_index >= static_cast<int>(search_rows_.size())) {
+    screen_.PostEvent(Event::Custom);
+    return;
+  }
+  track_cursor_ = search_rows_[static_cast<std::size_t>(view_index)];
+  search_prompt_ = false;
+  search_typing_.store(false);
+  search_rows_.clear();
+  search_no_match_ = false;
+  search_pattern_ = search_buffer_;
+  search_buffer_.clear();
+  workspace_pane_ = WorkspacePane::TrackList;
+  // The viewport follows the cursor in renderTrackBuffer, so the original row
+  // is revealed without a second scroll rule.
+  screen_.PostEvent(Event::Custom);
+}
+
+void Application::closeSearchPrompt() {
+  search_prompt_ = false;
+  search_typing_.store(false);
+  search_rows_.clear();
+  search_no_match_ = false;
+  search_buffer_.clear();
+  // Esc is a cancel: the list cursor goes back to where the box opened.
+  track_cursor_ = search_anchor_;
+  workspace_pane_ = WorkspacePane::TrackList;
+  screen_.PostEvent(Event::Custom);
 }
 
 bool Application::handleSearchPromptKey(const Event &event) {
   if (event == Event::Escape) {
-    // Cancel: the cursor goes back to where the search started, and the
-    // previous accepted pattern stays usable for `n` / `N`.
-    search_prompt_ = false;
-    search_buffer_.clear();
-    search_no_match_ = false;
-    if (search_target_ == SearchTarget::Tree) {
-      workspace_tree_.setCursor(search_anchor_);
-      autoLoadTreeCursor();
-    } else {
-      track_cursor_ = search_anchor_;
-    }
-    screen_.PostEvent(Event::Custom);
+    // Cancel: the complete list comes back and the cursor returns to where the
+    // box opened. The accepted pattern stays usable for `n` / `N`.
+    closeSearchPrompt();
     return true;
   }
   if (event == Event::Return) {
-    commitSearchPrompt();
+    jumpToSearchResult(search_cursor_);
     return true;
   }
-  // 0x7f edits the query here; it must never reach the pane chords.
-  if (event == Event::Backspace) {
-    if (!search_buffer_.empty()) {
-      search_buffer_.pop_back();
-      applySearchQuery();
-      visual_message_.clear();
-    }
-    screen_.PostEvent(Event::Custom);
+  // Up/Down walk the RESULTS while the editor keeps every other key, so a `j`
+  // or an `n` typed into the query is text and never a list command.
+  if (event == Event::ArrowUp) {
+    moveSearchCursor(-1);
     return true;
   }
-  if (event.is_character()) {
-    // One event carries one whole codepoint, which may be several UTF-8 bytes:
-    // filtering on size would reject every non-ASCII title or artist.
-    const std::string typed = event.character();
-    if (!typed.empty() &&
-        static_cast<int>(static_cast<unsigned char>(typed[0])) >= 0x20) {
-      search_buffer_ += typed;
-      applySearchQuery();
-    }
-    screen_.PostEvent(Event::Custom);
+  if (event == Event::ArrowDown) {
+    moveSearchCursor(1);
     return true;
   }
-  return true; // the search line owns every other key while it is open
-}
-
-void Application::commitSearchPrompt() {
-  search_prompt_ = false;
-  const SearchTarget target = search_target_;
-  if (search_buffer_.empty()) {
-    // An empty query clears the pattern and puts the cursor back: an accepted
-    // empty search is the same thing as a cancelled one.
-    search_pattern_.clear();
-    search_buffer_.clear();
-    search_no_match_ = false;
-    if (target == SearchTarget::Tree) {
-      workspace_tree_.setCursor(search_anchor_);
-      autoLoadTreeCursor();
-    } else {
-      track_cursor_ = search_anchor_;
-    }
-    screen_.PostEvent(Event::Custom);
-    return;
-  }
-  // The cursor is ALREADY on the match: applySearchQuery() moved it live. All
-  // that is left is to accept the pattern for `n` / `N`.
-  search_pattern_ = search_buffer_;
-  search_buffer_.clear();
-  search_no_match_ = false;
-  if (target == SearchTarget::Tracks) {
-    workspace_pane_ = WorkspacePane::TrackList;
-    if (search_pattern_.empty())
-      visual_message_.clear();
-  }
+  // Everything else belongs to the editor: FTXUI's Input edits UTF-8 by
+  // codepoint (backspace, Delete, arrows, Home/End), which is what keeps a
+  // Chinese query intact. `on_change` re-runs the filter.
+  (void)search_input_->OnEvent(event);
   screen_.PostEvent(Event::Custom);
+  return true;
 }
 
 void Application::autoLoadTreeCursor() {
@@ -2420,6 +2422,27 @@ bool Application::handleWorkspaceMouse(const Mouse &mouse) {
     return false;
   if (mouse.motion != Mouse::Pressed)
     return false;
+
+  // Track rows first: while the search box is open, clicking a RESULT selects
+  // it -- the same jump Enter performs, never playback.
+  if (search_prompt_) {
+    for (std::size_t slot = 0; slot < track_row_boxes_.size(); ++slot) {
+      if (track_row_boxes_[slot].IsEmpty() ||
+          !track_row_boxes_[slot].Contain(mouse.x, mouse.y))
+        continue;
+      const int original = track_row_index_[slot];
+      for (std::size_t view = 0; view < search_rows_.size(); ++view) {
+        if (search_rows_[view] != original)
+          continue;
+        jumpToSearchResult(static_cast<int>(view));
+        return true;
+      }
+      return true;
+    }
+    // The box owns the keyboard: a click behind it must not move the Tree
+    // while a query is being typed.
+    return true;
+  }
 
   // Tree rows: real final-layout hitboxes.
   const auto &nodes = workspace_tree_.visible();
@@ -2741,6 +2764,15 @@ Element Application::renderSidebarPlayback() {
 Element Application::renderTrackBuffer() {
   const std::vector<Song> &songs = activeTracks();
   const int inner = std::max(16, metrics_.track_buffer_width - 2);
+  // The VIEW: the complete list, or the rows a live query matched. Only the
+  // positions change -- every row still resolves to its ORIGINAL index through
+  // songIndexAt(), so the playing marker, a click and the jump target all use
+  // identity instead of a title that may repeat.
+  const bool filtering = searchActive();
+  const int view_size = filtering ? static_cast<int>(search_rows_.size())
+                                  : static_cast<int>(songs.size());
+  int &cursor = filtering ? search_cursor_ : track_cursor_;
+  int &scroll = filtering ? search_scroll_ : track_scroll_;
 
   // The active collection's column budget. Library rows carry a file size,
   // History rows the moment the track played, playlist rows the tags MPD
@@ -2764,31 +2796,31 @@ Element Application::renderTrackBuffer() {
   // without it there is no way to tell which collection the buffer shows.
   // Library, History and `default` are named EXACTLY as the Tree names them,
   // so the media database can never be mistaken for the mirror playlist.
-  const std::string collection = collectionLabel();
+  const std::string collection =
+      collectionLabel() + (filtering ? " \u2014 Search" : std::string());
   rows.push_back(text(" " + util::ellipsize(collection, inner)) | bold |
                  color(theme_.accent_primary));
   rows.push_back(text(songRow(heading, -1, inner, false)) |
                  color(theme_.header_text));
   rows.push_back(text(util::repeat(inner, "\u2500")) | color(theme_.border_dim));
 
-  if (songs.empty()) {
+  if (view_size == 0) {
     track_row_boxes_.assign(0, Box{});
     track_row_index_.assign(0, 0);
     rows.push_back(text(""));
-    rows.push_back(text("Collection is empty") | color(theme_.muted_text));
+    // A query that matches nothing shows NO list at all: an empty state, not
+    // the unrelated rows that happened to be there before.
+    rows.push_back(text(filtering ? "No matches." : "Collection is empty") |
+                   color(filtering ? theme_.error : theme_.muted_text));
   } else {
-    track_cursor_ = std::clamp(track_cursor_, 0,
-                               static_cast<int>(songs.size()) - 1);
+    cursor = std::clamp(cursor, 0, view_size - 1);
     const int page = std::max(1, metrics_.main_height - 5);
-    if (track_cursor_ < track_scroll_)
-      track_scroll_ = track_cursor_;
-    if (track_cursor_ >= track_scroll_ + page)
-      track_scroll_ = track_cursor_ - page + 1;
-    track_scroll_ =
-        std::clamp(track_scroll_, 0,
-                   std::max(0, static_cast<int>(songs.size()) - page));
-    const int visible_rows = std::clamp(
-        static_cast<int>(songs.size()) - track_scroll_, 0, page);
+    if (cursor < scroll)
+      scroll = cursor;
+    if (cursor >= scroll + page)
+      scroll = cursor - page + 1;
+    scroll = std::clamp(scroll, 0, std::max(0, view_size - page));
+    const int visible_rows = std::clamp(view_size - scroll, 0, page);
 
     // Final size fixed here, before any Element is built.
     int visual_lo = -1;
@@ -2799,7 +2831,8 @@ Element Application::renderTrackBuffer() {
     track_row_boxes_.assign(static_cast<std::size_t>(visible_rows), Box{});
     track_row_index_.assign(static_cast<std::size_t>(visible_rows), 0);
     for (int row = 0; row < visible_rows; ++row)
-      track_row_index_[static_cast<std::size_t>(row)] = track_scroll_ + row;
+      track_row_index_[static_cast<std::size_t>(row)] =
+          songIndexAt(scroll + row);
 
     // AT MOST ONE playing marker, resolved once for the whole buffer.
     //
@@ -2817,7 +2850,9 @@ Element Application::renderTrackBuffer() {
     const int playing_index = currentPlayingRow();
 
     for (int row = 0; row < visible_rows; ++row) {
-      const int index = track_scroll_ + row;
+      const int position = scroll + row;
+      // The row's ORIGINAL index: identity, never a display string.
+      const int index = songIndexAt(position);
       const Song &song = songs[static_cast<std::size_t>(index)];
       const bool is_playing = index == playing_index;
       // Four independent states, none of which may hide another:
@@ -2830,8 +2865,13 @@ Element Application::renderTrackBuffer() {
       // Only the FOCUSED Track Buffer paints the strong cursor row. While the
       // Tree owns the keyboard this pane shows no highlight at all: the
       // playing row keeps its marker and colour, which is a hint, not a focus.
+      // The cursor row: the list's own cursor normally; while the box is open
+      // the RESULT cursor, which is what the user is choosing between.
       const bool is_cursor =
-          index == track_cursor_ && workspace_pane_ == WorkspacePane::TrackList;
+          filtering
+              ? position == cursor
+              : (index == track_cursor_ &&
+                 workspace_pane_ == WorkspacePane::TrackList);
       // On the cursor row every glyph goes Crust so the Mauve highlight stays
       // readable; the Sky marker is the one element that keeps its own colour,
       // which is what keeps "playing" visible while the cursor sits on it.
@@ -2842,7 +2882,9 @@ Element Application::renderTrackBuffer() {
           is_cursor ? theme_.track_cursor_fg : theme_.header_text;
       const Color muted_fg =
           is_cursor ? theme_.track_cursor_fg : theme_.muted_text;
-      const SongRowParts parts = songRowParts(song, index + 1, columns);
+      // Results are renumbered inside the filtered view; the complete list
+      // keeps the ordinals it always had.
+      const SongRowParts parts = songRowParts(song, position + 1, columns);
       // Every cell is pinned to its exact column width. An hbox otherwise
       // redistributes space between flexible text nodes, which would silently
       // re-flow the columns; pinning keeps the row laid out exactly where the
@@ -2960,13 +3002,12 @@ Element Application::renderImmersiveNowPlaying() {
   //    pads the layout reserved above and below it.
   Elements center;
   center.push_back(blankRows(layout.visualizer_top_pad));
-  // The same outer margin the information bar uses, plus the air the layout
-  // reserved to the LEFT of the active grid: the grid is centred by
-  // construction, and the filler takes the matching air on the right.
-  const std::string grid_air =
-      util::repeat(std::max(0, layout.visualizer_grid_left));
-  center.push_back(hbox({text(margin + grid_air), renderImmersiveVisualizer(),
-                         filler()}));
+  // The same outer margin the information bar uses, and then the WHOLE drawable
+  // width: the Spectrum spreads across its container and centres itself inside
+  // it. The grid air the old chunky styles were inset by would only shrink the
+  // spectrum by a fifth of the screen.
+  center.push_back(
+      hbox({text(margin), renderImmersiveVisualizer(), filler()}));
   center.push_back(blankRows(layout.visualizer_bottom_pad));
 
   return vbox({
@@ -3064,6 +3105,11 @@ bool Application::scriptKey(std::string_view token) {
   }
   if (token.size() == 1)
     return named(Event::Character(token.front()));
+  // ONE UTF-8 codepoint (a Chinese character, an accent) is ONE character
+  // event, exactly as an IME commit delivers it. Splitting it into bytes made
+  // `type 枫` drop the token silently and every non-ASCII regression vacuous.
+  if (scriptCodepoints(token).size() == 1)
+    return named(Event::Character(std::string(token)));
   return false;
 }
 
@@ -3128,6 +3174,16 @@ std::string Application::scriptStateSummary() {
       << " occ=" << session.occurrence
       << " seq=" << session.sequence.size()
       << " cursor=" << track_cursor_
+      // The search box and its filtered view: `searchRows` is how many rows of
+      // the RIGHT list matched, `searchCursor` the result cursor inside that
+      // view, and `searchQuery` what is on the line. The list keeps reporting
+      // its own `cursor` / `rows`, so a test can tell the view from the list.
+      << " searchOn=" << (search_prompt_ ? 1 : 0)
+      << " searchRows="
+      << (searchActive() ? static_cast<int>(search_rows_.size()) : 0)
+      << " searchCursor=" << (searchActive() ? search_cursor_ : 0)
+      << " searchQuery="
+      << (search_prompt_ ? search_buffer_ : std::string())
       << " pane="
       << (workspace_pane_ == WorkspacePane::Tree ? "tree" : "tracks")
       // Single-pane mode hides the sidebar (and with it the playback block):
@@ -3205,8 +3261,9 @@ std::string Application::scriptStateSummary() {
       << " vizBottomPad=" << metrics_.immersive.visualizer_bottom_pad
       << " vizRows=" << metrics_.immersive.visualizer_container_rows
       << " vizCols=" << metrics_.immersive.visualizer_container_columns
-      // The active block grid: origin, drawn size, and the strides that make
-      // the small rectangles. All of it comes from the metrics.
+      // The drawable grid the Spectrum draws in: origin and drawn size, from
+      // the metrics. `vizRows` / `gridRows` differ because the grid floats
+      // inside its container, and the baseline is the centre of the GRID.
       << " gridLeft=" << metrics_.immersive.visualizer_grid_left
       << " gridTop=" << metrics_.immersive.visualizer_grid_top
       << " gridCols=" << metrics_.immersive.visualizer_grid_columns
@@ -3224,23 +3281,23 @@ std::string Application::scriptStateSummary() {
              top = std::max(top, value);
            return static_cast<int>(std::lround(top * 100.0F));
          }()
-      << " vizLive=" << ((state_.visualizer.enabled && state_.visualizer.data_available) ? 1 : 0)
-      << " vizOn=" << (state_.visualizer.enabled ? 1 : 0)
-      // Which style and palette are active, and what the ACTIVE renderer is
-      // holding. `vizCells` is the drawn-cell count of the last frame, which is
-      // what lets a script assert "silence is empty" / "music fills the grid"
-      // without knowing anything about the style.
-      // The CONFIGURED style and palette (normalized), so a script can assert
-      // them from any pane; the renderer may not have run yet.
-      << " vizStyle="
-      << termusic::ui::normalizeVisualizerStyleId(
-             controller_.config().visualizer_style)
+      << " vizLive=" << (state_.visualizer.data_available ? 1 : 0)
+      // The ONE visualizer, and what it is holding. `vizCells` is the
+      // drawn-cell count of the last frame; `vizBase` is the DOT row the bars
+      // stand on, `vizMain` the tallest a bar may be, and `vizBars` / `vizDots`
+      // the bar count and the dot count -- the dots are one per bar and are
+      // drawn whether or not any audio is arriving.
+      << " viz=" << (visualizer_ ? visualizer_->id() : termusic::ui::kVisualizerId)
       << " vizPalette="
       << termusic::ui::normalizeVisualizerPaletteId(
              controller_.config().visualizer_palette)
       << " vizCells=" << (visualizer_ ? visualizer_->stats().drawn : 0)
       << " vizHeld=" << (visualizer_ ? visualizer_->stats().retained : 0)
       << " vizCap=" << (visualizer_ ? visualizer_->stats().capacity : 0)
+      << " vizBase=" << (visualizer_ ? visualizer_->stats().baseline : 0)
+      << " vizMain=" << (visualizer_ ? visualizer_->stats().main_rows : 0)
+      << " vizBars=" << (visualizer_ ? visualizer_->stats().bars : 0)
+      << " vizDots=" << (visualizer_ ? visualizer_->stats().dots : 0)
       // The sidebar's two regions, from the metrics: a script can assert the
       // responsive behaviour without measuring pixels.
       << " sideRows=" << metrics_.sidebar.rows
@@ -3389,11 +3446,29 @@ Element Application::renderBottomBox() {
     return confirmBox("Delete playlist \"" + name + "\"?");
   }
   if (search_prompt_)
-    return inputBox("/", search_buffer_, search_no_match_);
+    return renderSearchInput();
   if (playlist_prompt_)
     return inputBox(playlist_prompt_rename_ ? "rename" : "new playlist",
                     playlist_prompt_text_, false);
   return text("");
+}
+
+Element Application::renderSearchInput() {
+  // The box keeps the shape the search line always had -- a framed row, a short
+  // label, the caret -- but the value and the caret now come from the
+  // persistent FTXUI Input, so what is typed is edited as UTF-8 and the
+  // terminal cursor is placed on the caret, where an IME needs it.
+  using namespace ftxui;
+  const Color frame = search_no_match_ ? theme_.error : theme_.input_border;
+  const Color accent =
+      search_no_match_ ? theme_.error : theme_.accent_secondary;
+  return vbox(Elements{
+             hbox(Elements{
+                 text(" / ") | bold | color(accent),
+                 search_input_->Render() | flex,
+             }),
+         }) |
+         borderStyled(ROUNDED, frame);
 }
 
 bool Application::toastVisible() const {
@@ -3428,7 +3503,7 @@ Element Application::renderToast() {
 }
 
 void Application::syncVisualizerSpectrum() {
-  if (!state_.visualizer.enabled || state_.demo)
+  if (state_.demo)
     return;
   // The analyzer only analyses while playback is active, and this is the one
   // place that tells it so: driving it from the timer path means the spectrum
@@ -3442,20 +3517,13 @@ void Application::syncVisualizerSpectrum() {
 }
 
 void Application::ensureVisualizerRenderer() {
-  // The renderer follows the configuration. A style or palette change rebuilds
-  // it -- and a rebuild starts from `reset()`, so no runtime state can survive
-  // from the style that was showing a moment ago.
-  const Config &config = controller_.config();
-  const std::string style =
-      std::string(ui::normalizeVisualizerStyleId(config.visualizer_style));
-  const std::string palette =
-      std::string(ui::normalizeVisualizerPaletteId(config.visualizer_palette));
-  if (visualizer_ != nullptr && style == visualizer_style_ &&
-      palette == visualizer_palette_)
+  // ONE renderer, created once. There is no style to look up and no factory
+  // switch to walk: the Spectrum is the visualizer, and the palette it draws in
+  // arrives with every frame (see visualizerFrame), so a palette change needs
+  // no rebuild at all.
+  if (visualizer_ != nullptr)
     return;
-  visualizer_style_ = style;
-  visualizer_palette_ = palette;
-  visualizer_ = ui::makeVisualizerRenderer(style);
+  visualizer_ = ui::makeSpectrumRenderer();
   visualizer_->reset();
 }
 
@@ -3481,13 +3549,13 @@ double Application::lowBandOnset() const {
 ui::VisualizerFrame Application::visualizerFrame(
     const ui::VisualizerPalette &palette, double dt) {
   const ImmersiveLayout &layout = metrics_.immersive;
-  const bool live = state_.visualizer.enabled &&
-                    (state_.visualizer.data_available || motion_test_);
+  const bool live = state_.visualizer.data_available || motion_test_;
   return ui::VisualizerFrame{
       .bands = state_.visualizer.position,
-      .peaks = state_.visualizer.peaks,
-      .columns = std::max(0, layout.visualizer_grid_columns),
-      .rows = std::max(0, layout.visualizer_grid_rows),
+      // The Spectrum draws across the CONTAINER, not the old inset grid: the
+      // full drawable width, with its own small margin inside it.
+      .columns = std::max(0, layout.visualizer_container_columns),
+      .rows = std::max(0, layout.visualizer_container_rows),
       .beat = static_cast<float>(beat_.envelope),
       .dt = static_cast<float>(std::clamp(dt, 1.0 / 240.0, 0.05)),
       .live = live,
@@ -3497,11 +3565,11 @@ ui::VisualizerFrame Application::visualizerFrame(
 }
 
 Element Application::renderImmersiveVisualizer() {
-  // ONE adapter, no style knowledge: the registry decides which renderer is
-  // active, this function hands it the shared frame and draws the result.
+  // ONE adapter, no selection: the Spectrum is the only renderer, so this
+  // function hands it the shared frame and draws the result.
   //
   // The beat envelope is stepped here because it belongs to the shared model,
-  // not to a style: bars use it for a baseline accent, particles for a burst.
+  // not to the renderer.
   ensureVisualizerRenderer();
   const auto now = std::chrono::steady_clock::now();
   double dt = 1.0 / 60.0;
@@ -3512,8 +3580,11 @@ Element Application::renderImmersiveVisualizer() {
   low_energy_ = lowBandOnset();
   beat_ = beatStep(beat_, low_energy_, dt);
 
-  const ui::VisualizerPalette &palette =
-      ui::visualizerPalette(visualizer_palette_);
+  // The palette is read from the configuration on every frame: it is the one
+  // visualizer setting that changes what the cells look like, and nothing has
+  // to be rebuilt for it.
+  const ui::VisualizerPalette &palette = ui::visualizerPalette(
+      controller_.config().visualizer_palette);
   ui::VisualizerFrame frame = visualizerFrame(palette, dt);
   visualizer_->update(frame);
   return visualizer_->render(frame);
@@ -4121,10 +4192,9 @@ void Application::updateVisualizerMotion() {
   dt = std::clamp(dt, 1.0 / 240.0, 0.05);
   const auto step = static_cast<float>(dt);
 
-  const bool live =
-      state_.visualizer.enabled && state_.visualizer.data_available;
+  const bool live = state_.visualizer.data_available;
   std::vector<float> fallback;
-  if (!live && state_.visualizer.enabled && motion_test_) {
+  if (!live && motion_test_) {
     const double seconds =
         std::chrono::duration<double>(now.time_since_epoch()).count();
     fallback = fallbackSpectrum(kCanonicalBands, seconds);
@@ -4216,7 +4286,7 @@ void Application::updateVisualizerMotion() {
                      sorted.end());
     return sorted[at];
   }();
-  constexpr float kTargetP95 = 0.74F;
+  constexpr float kTargetP95 = 0.86F;
   constexpr float kGainMin = 0.65F;
   constexpr float kGainMax = 1.35F;
   constexpr double kGainAttack = 0.070;  // 70 ms  : clamp down quickly
@@ -4229,9 +4299,19 @@ void Application::updateVisualizerMotion() {
                     static_cast<float>(1.0 - std::exp(-dt / gain_tau));
 
   // Visual compressor: preserves contrast above the threshold instead of
-  // squeezing everything into the top few percent.
-  constexpr float kCompThreshold = 0.72F;
-  constexpr float kCompRatio = 2.5F;
+  // squeezing everything into the top few percent. The knee sits HIGH and the
+  // ratio is gentle, so a loud band still ends up clearly taller than a medium
+  // one instead of being levelled down to it.
+  constexpr float kCompThreshold = 0.86F;
+  constexpr float kCompRatio = 1.8F;
+
+  // Contrast curve, applied to the DRAWN height only: take a display floor off
+  // the top of the range and expand what is left. What sits under the floor is
+  // display noise and goes to zero, the crowded middle is pushed down, and the
+  // peaks keep their height -- that is what makes the columns move instead of
+  // hovering together at a medium height.
+  constexpr float kDisplayFloor = 0.07F;
+  constexpr float kDisplayGamma = 1.30F;
 
   for (int band = 0; band < kCanonicalBands; ++band) {
     const auto index = static_cast<std::size_t>(band);
@@ -4241,13 +4321,19 @@ void Application::updateVisualizerMotion() {
         driven <= kCompThreshold
             ? driven
             : kCompThreshold + (driven - kCompThreshold) / kCompRatio;
-    const float value = std::clamp(compressed, 0.0F, 1.0F);
+    const float value = std::pow(
+        std::clamp((std::clamp(compressed, 0.0F, 1.0F) - kDisplayFloor) /
+                       (1.0F - kDisplayFloor),
+                   0.0F, 1.0F),
+        kDisplayGamma);
 
     fast[index] += (value - fast[index]) *
                    (value > fast[index] ? fast_rise : fast_fall);
     slow[index] += (value - slow[index]) *
                    (value > slow[index] ? slow_rise : slow_fall);
-    target[index] = 0.72F * fast[index] + 0.28F * slow[index];
+    // The mix leans on the FAST envelope, so the height follows the music's
+    // own rhythm instead of gliding between sections.
+    target[index] = 0.82F * fast[index] + 0.18F * slow[index];
   }
 
   // --- Spectral flux: gates how fast the spring rises, nothing else --------
@@ -4380,10 +4466,14 @@ void Application::processTimers() {
   syncVisualizerSpectrum();
   // Cheap identity comparison on every tick: only a genuine track transition
   // reaches the resolver, and the resolver itself is idempotent per track.
+  // While the search line owns the keyboard the screen is a static list, and
+  // repainting it 30 times a second is exactly what makes a terminal IME's
+  // composition flicker. The fast rate is therefore suspended for as long as
+  // the box is open; closing it brings the animation straight back.
   ticker_fast_.store(
-      state_.player.state == PlaybackState::Playing || state_.demo ||
-      ui_slider_test_ || motion_test_ ||
-      (state_.visualizer.enabled && state_.visualizer.data_available));
+      !search_prompt_ &&
+      (state_.player.state == PlaybackState::Playing || state_.demo ||
+       ui_slider_test_ || motion_test_ || state_.visualizer.data_available));
   // Top-bar clock. Refreshed at most once a second; the ticker is 250 ms.
   {
     if (state_.demo) {

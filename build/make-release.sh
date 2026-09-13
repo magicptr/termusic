@@ -13,10 +13,11 @@
 # published paths are independent, and building one variant must never destroy
 # the other one's artifact.
 #
-# Dependencies: libmpdclient and fftw3f are found through pkg-config. FTXUI is
-# used from a system package when one is installed; otherwise CMake fetches the
-# pinned release into the build tree on the first configure, which needs network
-# access once. No package manager is involved.
+# Dependencies: FTXUI, libmpdclient and kissfft are all built from pinned
+# sources and linked statically, so no development package is needed for any of
+# them. FTXUI is used from a system package when exactly 7.0.3 is installed;
+# otherwise CMake fetches the pinned releases on the first configure, which
+# needs network access once. No package manager is involved.
 #
 # The sources are touched before building because on this filesystem a write and
 # an edit stamp different clocks, which makes ninja's mtime comparison

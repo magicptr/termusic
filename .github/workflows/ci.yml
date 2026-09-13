@@ -1,0 +1,45 @@
+name: CI
+
+# Ordinary development: build and test every push and pull request. This
+# workflow never creates a release and never writes to the repository.
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        build_type: [Release, Debug]
+    steps:
+      - uses: actions/checkout@v4
+
+      # The build needs cmake, ninja, meson (libmpdclient is built from its
+      # pinned upstream release), git and a C++20 compiler. FTXUI, libmpdclient
+      # and kissfft are fetched and linked statically: no development package
+      # for any of them is required. Ninja is installed for Meson's backend,
+      # not because CMake is told to use it: the configure and build commands
+      # below are exactly the ones the README gives a user, with CMake's own
+      # default generator.
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake ninja-build meson g++ git
+
+      - name: Configure
+        run: cmake -S . -B build/ci -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+
+      - name: Build
+        run: cmake --build build/ci -j
+
+      - name: Test
+        run: ctest --test-dir build/ci --output-on-failure
+
+      - name: Version
+        run: ./build/ci/termusic --version

@@ -84,16 +84,14 @@ struct Config {
   bool ui_mouse_debug = false;
   bool ui_visualizer_motion_test = false;
   /// A/B/C presentation preset for visual calibration.
-  /// The active visualizer style: one of the ids in the style registry
-  /// (`classic-bars`, `waterfall`, `particles`). A value the registry does not
-  /// know -- a legacy "city", a typo -- is normalized to `classic-bars` on
-  /// load, so a stored style can never fail to resolve.
-  std::string visualizer_style = "classic-bars";
-  /// The colour ramp, independent of the style: any style draws in any palette.
+  /// The colour ramp the Spectrum is drawn in (theme | ice | fire | rainbow).
   std::string visualizer_palette = "theme";
 
   // --- [visualizer] --------------------------------------------------------
-  bool visualizer_enabled = true;
+  // `style` and `enabled` used to live here. They are still READ from an old
+  // file and ignored -- see loadConfig -- so a stored style selects nothing and
+  // a stored `enabled = false` cannot blank a display that Appearance calls
+  // "Visualizer".
   int visualizer_refresh_hz = 60;
   float visualizer_sensitivity = 1.0F;
   int visualizer_bar_density = 64;
@@ -234,8 +232,6 @@ struct CliOverrides {
   int gap = 0;
   bool icons_set = false;
   std::string icons;
-  bool visualizer_style_set = false;
-  std::string visualizer_style;
   bool visualizer_palette_set = false;
   std::string visualizer_palette;
   bool theme_directory_set = false;

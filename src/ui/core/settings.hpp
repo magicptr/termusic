@@ -26,13 +26,14 @@ namespace termusic::ui::core {
 /// so a new item type is one enumerator plus one branch here -- never a new
 /// hand-built widget in a module.
 enum class SettingKind {
-  Heading, ///< group title: read-only and NOT selectable
-  Text,    ///< a line of text: selectable so a long block can be scrolled
-  Toggle,  ///< on / off
-  Input,   ///< free text
-  Number,  ///< numeric: stepped with h/l, or typed after Enter
-  Select,  ///< one of a fixed list: cycled with h/l or Enter
-  Action,  ///< runs a callback
+  Heading,  ///< group title: read-only and NOT selectable
+  Text,     ///< a line of text: selectable so a long block can be scrolled
+  Toggle,   ///< on / off
+  Input,    ///< free text
+  Number,   ///< numeric: stepped with h/l, or typed after Enter
+  Select,   ///< one of a fixed list: cycled with h/l or Enter
+  Action,   ///< runs a callback
+  Disabled, ///< shown but not offered: a reserved choice that does not exist
 };
 
 /// One row, with the accessors that read and write its value. The accessors are
@@ -67,7 +68,8 @@ struct SettingItem {
   /// Input: draw asterisks instead of the value.
   bool secret = false;
 
-  /// True when this row can be activated at all. Headings and pure text cannot.
+  /// True when this row can be activated at all. Headings and disabled rows
+  /// cannot.
   bool selectable() const;
 };
 
@@ -89,6 +91,10 @@ SettingItem select(std::string label, std::vector<std::string> options,
                    std::string help = {});
 SettingItem action(std::string label, std::function<void()> run,
                    std::string help = {});
+/// A row that is SHOWN but not offered: a reserved choice whose implementation
+/// does not exist yet. The cursor skips it, it never takes the focus band, and
+/// its value is the fixed word `unavailable` -- so no key can select it.
+SettingItem disabled(std::string label, std::string help = {});
 
 /// The list engine: cursor, scrolling, editing and drawing for a list of
 /// items. One per section; a section adds nothing else.

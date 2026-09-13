@@ -12,11 +12,18 @@ using ftxui::Color;
 float clamp01(float value) { return std::clamp(value, 0.0F, 1.0F); }
 
 /// The active theme's own spectrum ramp: quiet bands take the low accent, loud
-/// ones the high accent. This is the default, and the only ramp that re-themes
-/// with the rest of the UI.
+/// ones the high accent, and the very top of the screen takes the peak accent.
+/// This is the default, and the only ramp that re-themes with the rest of the
+/// UI. The three stops are existing theme roles -- the Spectrum defines no
+/// colours of its own.
 Color themeRamp(float intensity, const Theme &theme) {
-  return Color::Interpolate(clamp01(intensity), theme.spectrum_low,
-                            theme.spectrum_high);
+  const float value = clamp01(intensity);
+  constexpr float kUpperStop = 0.68F;
+  if (value <= kUpperStop)
+    return Color::Interpolate(value / kUpperStop, theme.spectrum_low,
+                              theme.spectrum_high);
+  return Color::Interpolate((value - kUpperStop) / (1.0F - kUpperStop),
+                            theme.spectrum_high, theme.spectrum_peak);
 }
 
 /// Cold: deep blue at the bottom of the scale, white at the top.

@@ -95,53 +95,317 @@ const std::unordered_map<std::string, ColorMember> &colorMembers() {
   return members;
 }
 
-Theme nordTheme() {
+/// Kanagawa (rebelot/kanagawa.nvim, "wave"): sumi ink surfaces, old-white
+/// text, oni violet and crystal blue as the two accents, sakura pink for the
+/// brand. Values are the upstream named colours.
+Theme kanagawaTheme() {
   Theme theme;
-  theme.background = ftxui::Color::RGB(0x2E, 0x34, 0x40);
-  theme.background_deep = ftxui::Color::RGB(0x24, 0x29, 0x33);
-  theme.panel = ftxui::Color::RGB(0x3B, 0x42, 0x52);
-  theme.text = ftxui::Color::RGB(0xEC, 0xEF, 0xF4);
-  theme.muted_text = ftxui::Color::RGB(0xD8, 0xDE, 0xE9);
-  theme.weak_text = ftxui::Color::RGB(0x81, 0xA1, 0xC1);
-  theme.header_text = theme.text;
-  theme.border = ftxui::Color::RGB(0x88, 0xC0, 0xD0);
-  theme.border_dim = ftxui::Color::RGB(0x4C, 0x56, 0x6A);
+  theme.background = ftxui::Color::RGB(0x1F, 0x1F, 0x28);      // sumiInk3
+  theme.background_deep = ftxui::Color::RGB(0x16, 0x16, 0x1D); // sumiInk0
+  theme.panel = ftxui::Color::RGB(0x2A, 0x2A, 0x37);           // sumiInk4
+  theme.surface = ftxui::Color::RGB(0x36, 0x36, 0x46);         // sumiInk5
+  theme.text = ftxui::Color::RGB(0xDC, 0xD7, 0xBA);        // fujiWhite
+  theme.header_text = ftxui::Color::RGB(0xC8, 0xC0, 0x93); // oldWhite
+  theme.muted_text = ftxui::Color::RGB(0xC8, 0xC0, 0x93);  // oldWhite
+  theme.weak_text = ftxui::Color::RGB(0x72, 0x71, 0x69);   // fujiGray
+  theme.border = ftxui::Color::RGB(0x54, 0x54, 0x6D);      // sumiInk6
+  theme.border_dim = ftxui::Color::RGB(0x2A, 0x2A, 0x37);  // sumiInk4
+  theme.divider = theme.border_dim;
   theme.separator = theme.border_dim;
-  theme.accent_primary = ftxui::Color::RGB(0xB4, 0x8E, 0xAD);
-  theme.accent_secondary = ftxui::Color::RGB(0x88, 0xC0, 0xD0);
-  theme.accent_purple = theme.accent_primary;
-  theme.brand = theme.accent_primary;
+  theme.accent_primary = ftxui::Color::RGB(0x95, 0x7F, 0xB8);   // oniViolet
+  theme.accent_secondary = ftxui::Color::RGB(0x7E, 0x9C, 0xD8); // crystalBlue
+  theme.accent_purple = ftxui::Color::RGB(0x93, 0x8A, 0xA9);    // springViolet1
+  theme.brand = ftxui::Color::RGB(0xD2, 0x7E, 0x99);            // sakuraPink
   theme.frame = theme.text;
   theme.selected_fg = theme.background_deep;
-  theme.selected_bg = ftxui::Color::RGB(0x88, 0xC0, 0xD0);
-  // Keep every focus/selection role derived from this preset's own palette
-  // rather than inheriting the Catppuccin defaults.
+  theme.selected_bg = theme.accent_primary;
+  // Every focus/selection role comes from THIS palette: the tree cursor is the
+  // strongest accent band, the track cursor the second accent, and the active
+  // collection only a text tint, so Focus always outweighs Active.
+  theme.tree_cursor_bg = theme.accent_primary;
+  theme.tree_cursor_fg = theme.background_deep;
+  theme.track_cursor_bg = theme.accent_secondary;
+  theme.track_cursor_fg = theme.background_deep;
+  theme.visual_cursor_bg = theme.accent_secondary;
+  theme.visual_selection_bg = theme.surface;
+  theme.active_collection = ftxui::Color::RGB(0x7A, 0xA8, 0x9F); // waveAqua2
+  theme.playing = ftxui::Color::RGB(0x9C, 0xAB, 0xCA);           // springViolet2
+  theme.tree_item = theme.accent_secondary;
+  theme.hover_bg = theme.surface;
+  theme.hover_border = theme.accent_primary;
+  theme.progress_filled = theme.accent_primary;
+  theme.progress_filled_end = theme.brand;
+  theme.progress_empty = theme.border_dim;
+  theme.progress_knob = theme.accent_purple;
+  theme.volume_fill = theme.active_collection;
+  theme.volume_empty = theme.border_dim;
+  theme.icon = theme.header_text;
+  theme.spectrum_low = theme.accent_primary;
+  theme.spectrum_high = theme.accent_secondary;
+  theme.spectrum_peak = ftxui::Color::RGB(0xE6, 0xC3, 0x84); // carpYellow
+  theme.success = ftxui::Color::RGB(0x98, 0xBB, 0x6C);       // springGreen
+  theme.warning = ftxui::Color::RGB(0xDC, 0xA5, 0x61);       // autumnYellow
+  theme.error = ftxui::Color::RGB(0xE4, 0x68, 0x76);         // waveRed
+  theme.info = theme.accent_secondary;
+  theme.ok = theme.success;
+  return theme;
+}
+
+/// Material Palenight (the official Material Theme "Palenight" palette): deep
+/// indigo surfaces, lavender text, purple and blue accents.
+Theme materialPalenightTheme() {
+  Theme theme;
+  theme.background = ftxui::Color::RGB(0x29, 0x2D, 0x3E);
+  theme.background_deep = ftxui::Color::RGB(0x1B, 0x1E, 0x2B);
+  theme.panel = ftxui::Color::RGB(0x33, 0x37, 0x47);
+  theme.surface = ftxui::Color::RGB(0x3A, 0x3F, 0x58);
+  theme.text = ftxui::Color::RGB(0xEE, 0xFF, 0xFF);
+  theme.header_text = ftxui::Color::RGB(0xEE, 0xFF, 0xFF);
+  theme.muted_text = ftxui::Color::RGB(0xA6, 0xAC, 0xCD);
+  theme.weak_text = ftxui::Color::RGB(0x67, 0x6E, 0x95); // comments
+  theme.border = ftxui::Color::RGB(0x44, 0x42, 0x67);
+  theme.border_dim = ftxui::Color::RGB(0x33, 0x37, 0x47);
+  theme.divider = theme.border_dim;
+  theme.separator = theme.border_dim;
+  theme.accent_primary = ftxui::Color::RGB(0xC7, 0x92, 0xEA);   // purple
+  theme.accent_secondary = ftxui::Color::RGB(0x82, 0xAA, 0xFF); // blue
+  theme.accent_purple = ftxui::Color::RGB(0xC7, 0x92, 0xEA);
+  theme.brand = ftxui::Color::RGB(0xC7, 0x92, 0xEA);
+  theme.frame = theme.text;
+  theme.selected_fg = theme.background_deep;
+  theme.selected_bg = theme.accent_primary;
+  theme.tree_cursor_bg = ftxui::Color::RGB(0xF0, 0x71, 0x78); // pink
+  theme.tree_cursor_fg = theme.background_deep;
+  theme.track_cursor_bg = theme.accent_primary;
+  theme.track_cursor_fg = theme.background_deep;
+  theme.visual_cursor_bg = theme.accent_primary;
+  theme.visual_selection_bg = theme.surface;
+  theme.active_collection = theme.accent_secondary;
+  theme.playing = ftxui::Color::RGB(0x89, 0xDD, 0xFF); // cyan
+  theme.tree_item = theme.tree_cursor_bg;
+  theme.hover_bg = theme.surface;
+  theme.hover_border = theme.accent_primary;
+  theme.progress_filled = theme.accent_secondary;
+  theme.progress_filled_end = theme.accent_primary;
+  theme.progress_empty = theme.border_dim;
+  theme.progress_knob = theme.accent_primary;
+  theme.volume_fill = theme.playing;
+  theme.volume_empty = theme.border_dim;
+  theme.icon = theme.header_text;
+  theme.spectrum_low = theme.accent_primary;
+  theme.spectrum_high = theme.accent_secondary;
+  theme.spectrum_peak = ftxui::Color::RGB(0xFF, 0xCB, 0x6B); // yellow
+  theme.success = ftxui::Color::RGB(0xC3, 0xE8, 0x8D);       // green
+  theme.warning = ftxui::Color::RGB(0xFF, 0xCB, 0x6B);       // yellow
+  theme.error = ftxui::Color::RGB(0xFF, 0x53, 0x70);         // red
+  theme.info = theme.accent_secondary;
+  theme.ok = theme.success;
+  return theme;
+}
+
+/// Monokai Pro ("classic"): warm charcoal surfaces and the six signature
+/// accents, with the yellow/orange pair reserved for warnings and peaks.
+Theme monokaiProTheme() {
+  Theme theme;
+  theme.background = ftxui::Color::RGB(0x2D, 0x2A, 0x2E);
+  theme.background_deep = ftxui::Color::RGB(0x22, 0x1F, 0x22);
+  theme.panel = ftxui::Color::RGB(0x40, 0x3E, 0x41);
+  theme.surface = ftxui::Color::RGB(0x5B, 0x59, 0x5C);
+  theme.text = ftxui::Color::RGB(0xFC, 0xFC, 0xFA);
+  theme.header_text = ftxui::Color::RGB(0xFC, 0xFC, 0xFA);
+  theme.muted_text = ftxui::Color::RGB(0xC1, 0xC0, 0xC0);
+  theme.weak_text = ftxui::Color::RGB(0x72, 0x70, 0x72); // comments
+  theme.border = ftxui::Color::RGB(0x5B, 0x59, 0x5C);
+  theme.border_dim = ftxui::Color::RGB(0x40, 0x3E, 0x41);
+  theme.divider = theme.border_dim;
+  theme.separator = theme.border_dim;
+  theme.accent_primary = ftxui::Color::RGB(0xAB, 0x9D, 0xF2);   // purple
+  theme.accent_secondary = ftxui::Color::RGB(0x78, 0xDC, 0xE8); // cyan
+  theme.accent_purple = ftxui::Color::RGB(0xAB, 0x9D, 0xF2);
+  theme.brand = ftxui::Color::RGB(0xFF, 0x61, 0x88); // pink
+  theme.frame = theme.text;
+  theme.selected_fg = theme.background_deep;
+  theme.selected_bg = theme.accent_primary;
+  theme.tree_cursor_bg = theme.accent_primary;
+  theme.tree_cursor_fg = theme.background_deep;
+  theme.track_cursor_bg = theme.accent_secondary;
+  theme.track_cursor_fg = theme.background_deep;
+  theme.visual_cursor_bg = theme.accent_secondary;
+  theme.visual_selection_bg = theme.surface;
+  theme.active_collection = ftxui::Color::RGB(0xFC, 0x98, 0x67); // orange
+  theme.playing = theme.accent_secondary;
+  theme.tree_item = theme.accent_primary;
+  theme.hover_bg = theme.surface;
+  theme.hover_border = theme.accent_primary;
+  theme.progress_filled = theme.accent_secondary;
+  theme.progress_filled_end = theme.accent_primary;
+  theme.progress_empty = theme.border_dim;
+  theme.progress_knob = theme.accent_primary;
+  theme.volume_fill = ftxui::Color::RGB(0xA9, 0xDC, 0x76); // green
+  theme.volume_empty = theme.border_dim;
+  theme.icon = theme.header_text;
+  theme.spectrum_low = theme.accent_primary;
+  theme.spectrum_high = theme.accent_secondary;
+  theme.spectrum_peak = ftxui::Color::RGB(0xFF, 0xD8, 0x66); // yellow
+  theme.success = ftxui::Color::RGB(0xA9, 0xDC, 0x76);       // green
+  theme.warning = ftxui::Color::RGB(0xFF, 0xD8, 0x66);       // yellow
+  theme.error = ftxui::Color::RGB(0xFF, 0x61, 0x88);         // pink/red
+  theme.info = theme.accent_secondary;
+  theme.ok = theme.success;
+  return theme;
+}
+
+/// GitHub Dark (Primer's dark primitives): near-black canvas, restrained
+/// greys, blue as the single strong accent.
+Theme githubDarkTheme() {
+  Theme theme;
+  theme.background = ftxui::Color::RGB(0x0D, 0x11, 0x17);      // canvas.default
+  theme.background_deep = ftxui::Color::RGB(0x01, 0x04, 0x09); // canvas.inset
+  theme.panel = ftxui::Color::RGB(0x16, 0x1B, 0x22);           // canvas.subtle
+  theme.surface = ftxui::Color::RGB(0x21, 0x26, 0x2D);         // border.muted
+  theme.text = ftxui::Color::RGB(0xE6, 0xED, 0xF3);        // fg.default
+  theme.header_text = ftxui::Color::RGB(0xC9, 0xD1, 0xD9); // fg.default (dim)
+  theme.muted_text = ftxui::Color::RGB(0x8B, 0x94, 0x9E);  // fg.muted
+  theme.weak_text = ftxui::Color::RGB(0x6E, 0x76, 0x81);   // fg.subtle
+  theme.border = ftxui::Color::RGB(0x30, 0x36, 0x3D);      // border.default
+  theme.border_dim = ftxui::Color::RGB(0x21, 0x26, 0x2D);  // border.muted
+  theme.divider = theme.border_dim;
+  theme.separator = theme.border_dim;
+  theme.accent_primary = ftxui::Color::RGB(0x58, 0xA6, 0xFF);   // accent.fg
+  theme.accent_secondary = ftxui::Color::RGB(0x79, 0xC0, 0xFF); // blue.3
+  theme.accent_purple = ftxui::Color::RGB(0xA3, 0x71, 0xF7);    // done.fg
+  theme.brand = ftxui::Color::RGB(0xDB, 0x61, 0xA2);            // sponsors
+  theme.frame = theme.text;
+  theme.selected_fg = theme.background_deep;
+  theme.selected_bg = theme.accent_primary;
   theme.tree_cursor_bg = theme.accent_primary;
   theme.tree_cursor_fg = theme.background_deep;
   theme.track_cursor_bg = theme.accent_purple;
   theme.track_cursor_fg = theme.background_deep;
   theme.visual_cursor_bg = theme.accent_purple;
-  theme.active_collection = theme.accent_secondary;
-  theme.playing = theme.accent_secondary;
-  theme.tree_item = theme.accent_primary;
-  theme.hover_bg = ftxui::Color::RGB(0x43, 0x4C, 0x5E);
-  theme.visual_selection_bg = theme.hover_bg;
-  theme.surface = theme.hover_bg;
+  theme.visual_selection_bg = theme.surface;
+  theme.active_collection = theme.accent_purple;
+  theme.playing = ftxui::Color::RGB(0x3F, 0xB9, 0x50); // success.fg
+  theme.tree_item = theme.brand;
+  theme.hover_bg = theme.surface;
   theme.hover_border = theme.accent_primary;
-  theme.progress_filled = theme.accent_secondary;
-  theme.progress_filled_end = theme.accent_primary;
+  theme.progress_filled = theme.accent_primary;
+  theme.progress_filled_end = theme.accent_purple;
   theme.progress_empty = theme.border_dim;
-  theme.volume_fill = theme.spectrum_low;
+  theme.progress_knob = theme.accent_purple;
+  theme.volume_fill = theme.accent_secondary;
   theme.volume_empty = theme.border_dim;
+  theme.icon = theme.header_text;
+  theme.spectrum_low = theme.accent_primary;
+  theme.spectrum_high = theme.accent_purple;
+  theme.spectrum_peak = ftxui::Color::RGB(0xD2, 0x99, 0x22); // attention.fg
+  theme.success = ftxui::Color::RGB(0x3F, 0xB9, 0x50);       // success.fg
+  theme.warning = ftxui::Color::RGB(0xD2, 0x99, 0x22);       // attention.fg
+  theme.error = ftxui::Color::RGB(0xF8, 0x51, 0x49);         // danger.fg
+  theme.info = theme.accent_primary;
+  theme.ok = theme.success;
+  return theme;
+}
+
+/// Oxocarbon (nyoom-engineering/oxocarbon.nvim): near-black surfaces with a
+/// restrained grey ramp and the palette's teal/purple/blue/pink accents.
+Theme oxocarbonTheme() {
+  Theme theme;
+  theme.background = ftxui::Color::RGB(0x16, 0x16, 0x16);      // base00
+  theme.background_deep = ftxui::Color::RGB(0x13, 0x13, 0x13); // blend
+  theme.panel = ftxui::Color::RGB(0x29, 0x29, 0x29);           // base01
+  theme.surface = ftxui::Color::RGB(0x3F, 0x3F, 0x3F);         // base02
+  theme.text = ftxui::Color::RGB(0xF2, 0xF4, 0xF8);       // base05
+  theme.header_text = ftxui::Color::RGB(0xF2, 0xF4, 0xF8); // base05
+  theme.muted_text = ftxui::Color::RGB(0xD2, 0xD2, 0xD2);  // base04
+  theme.weak_text = ftxui::Color::RGB(0x52, 0x52, 0x52);   // base03
+  theme.border = ftxui::Color::RGB(0x5A, 0x5A, 0x5A);      // base03 light
+  theme.border_dim = ftxui::Color::RGB(0x29, 0x29, 0x29);  // base01
   theme.divider = theme.border_dim;
-  theme.icon = theme.text;
+  theme.separator = theme.border_dim;
+  theme.accent_primary = ftxui::Color::RGB(0xBE, 0x95, 0xFF);   // purple
+  theme.accent_secondary = ftxui::Color::RGB(0x33, 0xB1, 0xFF); // blue
+  theme.accent_purple = ftxui::Color::RGB(0xBE, 0x95, 0xFF);    // purple
+  theme.brand = ftxui::Color::RGB(0xFF, 0x7E, 0xB6);            // pink
+  theme.frame = theme.text;
+  theme.selected_fg = theme.background_deep;
+  theme.selected_bg = theme.accent_primary;
+  theme.tree_cursor_bg = theme.accent_primary;
+  theme.tree_cursor_fg = theme.background_deep;
+  theme.track_cursor_bg = theme.accent_secondary;
+  theme.track_cursor_fg = theme.background_deep;
+  theme.visual_cursor_bg = theme.accent_secondary;
+  theme.visual_selection_bg = theme.surface;
+  theme.active_collection = ftxui::Color::RGB(0x82, 0xCF, 0xFF); // pale cyan
+  theme.playing = ftxui::Color::RGB(0x08, 0xBD, 0xBA);           // teal
+  theme.tree_item = theme.active_collection;
+  theme.hover_bg = theme.surface;
+  theme.hover_border = theme.accent_primary;
+  theme.progress_filled = theme.accent_primary;
+  theme.progress_filled_end = theme.accent_secondary;
+  theme.progress_empty = theme.border_dim;
   theme.progress_knob = theme.accent_primary;
-  theme.spectrum_low = ftxui::Color::RGB(0x8F, 0xBC, 0xBB);
+  theme.volume_fill = theme.playing;
+  theme.volume_empty = theme.border_dim;
+  theme.icon = theme.header_text;
+  theme.spectrum_low = theme.accent_primary;
   theme.spectrum_high = theme.accent_secondary;
-  theme.spectrum_peak = ftxui::Color::RGB(0xEB, 0xCB, 0x8B);
-  theme.error = ftxui::Color::RGB(0xBF, 0x61, 0x6A);
-  theme.warning = theme.spectrum_peak;
-  theme.success = ftxui::Color::RGB(0xA3, 0xBE, 0x8C);
+  theme.spectrum_peak = theme.brand;
+  theme.success = ftxui::Color::RGB(0x42, 0xBE, 0x65); // green
+  theme.warning = ftxui::Color::RGB(0xFF, 0x6F, 0x00); // orange
+  theme.error = ftxui::Color::RGB(0xEE, 0x53, 0x96);   // magenta
+  theme.info = theme.accent_secondary;
+  theme.ok = theme.success;
+  return theme;
+}
+
+/// Catppuccin Macchiato: the official Macchiato palette, one step lighter than
+/// Mocha, with the same role mapping the default theme uses.
+Theme catppuccinMacchiatoTheme() {
+  Theme theme;
+  theme.background = ftxui::Color::RGB(0x24, 0x27, 0x3A);      // Base
+  theme.background_deep = ftxui::Color::RGB(0x18, 0x19, 0x26); // Crust
+  theme.panel = ftxui::Color::RGB(0x1E, 0x20, 0x30);           // Mantle
+  theme.surface = ftxui::Color::RGB(0x36, 0x3A, 0x4F);         // Surface0
+  theme.text = ftxui::Color::RGB(0xCA, 0xD3, 0xF5);        // Text
+  theme.header_text = ftxui::Color::RGB(0xB8, 0xC0, 0xE0); // Subtext1
+  theme.muted_text = ftxui::Color::RGB(0xA5, 0xAD, 0xCB);  // Subtext0
+  theme.weak_text = ftxui::Color::RGB(0x80, 0x87, 0xA2);   // Overlay1
+  theme.border = ftxui::Color::RGB(0x49, 0x4D, 0x64);      // Surface1
+  theme.border_dim = ftxui::Color::RGB(0x36, 0x3A, 0x4F);  // Surface0
+  theme.divider = theme.border;
+  theme.separator = theme.border;
+  theme.accent_primary = ftxui::Color::RGB(0xC6, 0xA0, 0xF6);   // Mauve
+  theme.accent_secondary = ftxui::Color::RGB(0x7D, 0xC4, 0xE4); // Sapphire
+  theme.accent_purple = ftxui::Color::RGB(0xB7, 0xBD, 0xF8);    // Lavender
+  theme.brand = ftxui::Color::RGB(0xF5, 0xBD, 0xE6);            // Pink
+  theme.frame = theme.text;
+  theme.selected_fg = theme.background_deep;
+  theme.selected_bg = theme.accent_primary;
+  theme.tree_cursor_bg = theme.brand;
+  theme.tree_cursor_fg = theme.background_deep;
+  theme.track_cursor_bg = theme.accent_primary;
+  theme.track_cursor_fg = theme.background_deep;
+  theme.visual_cursor_bg = theme.accent_primary;
+  theme.visual_selection_bg = theme.border;
+  theme.active_collection = theme.accent_secondary;
+  theme.playing = ftxui::Color::RGB(0x91, 0xD7, 0xE3); // Sky
+  theme.tree_item = theme.brand;
+  theme.hover_bg = theme.surface;
+  theme.hover_border = ftxui::Color::RGB(0x6E, 0x73, 0x8D); // Overlay0
+  theme.progress_filled = theme.accent_primary;
+  theme.progress_filled_end = theme.accent_primary;
+  theme.progress_empty = theme.surface;
+  theme.progress_knob = theme.accent_purple;
+  theme.volume_fill = ftxui::Color::RGB(0x8B, 0xD5, 0xCA); // Teal
+  theme.volume_empty = theme.surface;
+  theme.icon = theme.header_text;
+  theme.spectrum_low = theme.accent_primary;
+  theme.spectrum_high = theme.brand;
+  theme.spectrum_peak = theme.brand;
+  theme.success = ftxui::Color::RGB(0xA6, 0xDA, 0x95); // Green
+  theme.warning = ftxui::Color::RGB(0xEE, 0xD4, 0x9F); // Yellow
+  theme.error = ftxui::Color::RGB(0xED, 0x87, 0x96);   // Red
   theme.info = theme.accent_secondary;
   theme.ok = theme.success;
   return theme;
@@ -155,9 +419,17 @@ ThemeRegistry::ThemeRegistry() {
   // resolves to entries_.front(), so existing configuration keeps working and
   // picks up the new palette.
   registerTheme("catppuccin-mocha", "Catppuccin Mocha", Theme{});
-  // Alternate presets are kept exactly as they were; the Mocha values must
-  // never overwrite them.
-  registerTheme("nord", "Nord", nordTheme());
+  // The rest of the built-in list. The ORDER here is the order the
+  // Appearance -> Theme choice offers, so it runs from the default through the
+  // remaining presets to the second Catppuccin flavour.
+  registerTheme("kanagawa", "Kanagawa", kanagawaTheme());
+  registerTheme("material-palenight", "Material Palenight",
+                materialPalenightTheme());
+  registerTheme("monokai-pro", "Monokai Pro", monokaiProTheme());
+  registerTheme("github-dark", "GitHub Dark", githubDarkTheme());
+  registerTheme("oxocarbon", "Oxocarbon", oxocarbonTheme());
+  registerTheme("catppuccin-macchiato", "Catppuccin Macchiato",
+                catppuccinMacchiatoTheme());
 }
 
 bool ThemeRegistry::registerTheme(std::string id, std::string name, Theme theme,

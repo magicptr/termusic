@@ -253,7 +253,6 @@ void loadReferenceSpectrum(VisualizerState &visualizer, std::size_t bands) {
         level > 0.34F ? std::min(1.0F, level + 0.10F) : level;
   }
   visualizer.data_available = true;
-  visualizer.enabled = true;
 }
 
 } // namespace termusic

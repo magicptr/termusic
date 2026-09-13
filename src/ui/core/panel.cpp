@@ -32,10 +32,6 @@ struct SectionFactory {
 /// A covariant `unique_ptr` does not convert in a function-pointer context, so
 /// each module gets a one-line adapter. This is the price of "one registration
 /// line" and it is paid here, once.
-std::unique_ptr<SettingsSection> makeHelp() { return makeHelpSection(); }
-std::unique_ptr<SettingsSection> makeConnection() {
-  return makeConnectionSection();
-}
 std::unique_ptr<SettingsSection> makeGeneral() { return makeGeneralSection(); }
 std::unique_ptr<SettingsSection> makeAppearance() {
   return makeAppearanceSection();
@@ -44,14 +40,16 @@ std::unique_ptr<SettingsSection> makeKeybindings() {
   return makeKeybindingsSection();
 }
 std::unique_ptr<SettingsSection> makePlugins() { return makePluginsSection(); }
+std::unique_ptr<SettingsSection> makeAbout() { return makeAboutSection(); }
+std::unique_ptr<SettingsSection> makeHelp() { return makeHelpSection(); }
 
 constexpr std::array<SectionFactory, kCoreSections.size()> kSectionFactories = {{
-    {"core:help", makeHelp},
-    {"core:connection", makeConnection},
     {"core:general", makeGeneral},
     {"core:appearance", makeAppearance},
     {"core:keybindings", makeKeybindings},
     {"core:plugins", makePlugins},
+    {"core:about", makeAbout},
+    {"core:help", makeHelp},
 }};
 
 static_assert(kSectionFactories.size() == kCoreSections.size(),

@@ -2,7 +2,6 @@
 
 #include "config/paths.hpp"
 #include "ui/visualizer/palette.hpp"
-#include "ui/visualizer/renderer.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -243,7 +242,6 @@ void parseDocument(std::istream &input, ConfigLoad *load) {
   std::string section;
   std::string line;
   bool schema_seen = false;
-  std::string style_warning;
   std::size_t line_number = 0;
   while (std::getline(input, line)) {
     ++line_number;
@@ -364,22 +362,14 @@ void parseDocument(std::istream &input, ConfigLoad *load) {
               std::to_string(version) + "); unknown settings are preserved");
       }
     } else if (section == "visualizer") {
-      if (key == "enabled")
-        readBool(value, true, &config.visualizer_enabled, diagnostics,
-                 "visualizer", "enabled");
-      else if (key == "style") {
-        // A stored style is normalized, never trusted: an identifier the
-        // registry does not know (a removed "city", a typo) becomes the
-        // canonical default, and the user is told once, in the load warning.
-        const std::string stored = unquote(value);
-        const std::string_view resolved =
-            ui::normalizeVisualizerStyleId(stored);
-        config.visualizer_style = std::string(resolved);
-        if (stored != resolved && style_warning.empty()) {
-          style_warning = "visualizer style \"" + stored +
-                          "\" is no longer supported; using \"" +
-                          std::string(resolved) + "\"";
-        }
+      if (key == "style" || key == "enabled") {
+        // LEGACY, ignored on purpose -- and silently: there is ONE visualizer
+        // now (the Spectrum), so a stored style has nothing to select, and a
+        // stored `enabled = false` cannot leave the display blank while
+        // Appearance says Visualizer is on. Both keys are CONSUMED here, so an
+        // old file loads with no error and no crash, and neither is written
+        // back: one generic path, no per-style migration, no diagnostic noise.
+        continue;
       } else if (key == "palette") {
         config.visualizer_palette =
             std::string(ui::normalizeVisualizerPaletteId(unquote(value)));
@@ -403,8 +393,6 @@ void parseDocument(std::istream &input, ConfigLoad *load) {
       }
     }
   }
-  if (!style_warning.empty())
-    diagnostics.warn(style_warning);
   if (!schema_seen)
     config.schema_version = kConfigSchemaVersion;
 }
@@ -444,9 +432,6 @@ std::string serialize(const Config &config) {
          << "theme_directory = " << quote(config.theme_directory) << '\n'
          << "icons = " << quote(config.icon_set) << "\n\n"
          << "[visualizer]\n"
-         << "enabled = " << (config.visualizer_enabled ? "true" : "false")
-         << '\n'
-         << "style = " << quote(config.visualizer_style) << '\n'
          << "palette = " << quote(config.visualizer_palette) << '\n'
          << "refresh_hz = " << config.visualizer_refresh_hz << '\n'
          << "sensitivity = " << config.visualizer_sensitivity << '\n'
@@ -750,7 +735,8 @@ timeout_ms = 2000
 auto_reconnect = true
 
 [appearance]
-# Theme id: catppuccin-mocha (default), nord, or a theme file in
+# Theme id: catppuccin-mocha (default), kanagawa, material-palenight,
+# monokai-pro, github-dark, oxocarbon, catppuccin-macchiato, or a theme file in
 # `theme_directory` below.
 theme = "default"
 # Empty means the `themes` directory next to this file.
@@ -759,9 +745,9 @@ theme_directory = ""
 icons = "nerd"
 
 [visualizer]
-enabled = true
-# classic-bars | waterfall | particles
-style = "classic-bars"
+# The Spectrum is the only visualizer: there is no style to choose and no
+# switch to turn it off. A legacy `enabled` or `style` key is still accepted
+# and ignored, so an old configuration keeps loading.
 # theme | ice | fire | rainbow
 palette = "theme"
 refresh_hz = 60

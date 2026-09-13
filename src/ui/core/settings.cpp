@@ -76,7 +76,7 @@ std::vector<std::string> wrapText(const std::string &text, int width) {
 } // namespace
 
 bool SettingItem::selectable() const {
-  return kind != SettingKind::Heading;
+  return kind != SettingKind::Heading && kind != SettingKind::Disabled;
 }
 
 // --- Builders ---------------------------------------------------------------
@@ -166,6 +166,14 @@ SettingItem action(std::string label, std::function<void()> run,
   return item;
 }
 
+SettingItem disabled(std::string label, std::string help) {
+  SettingItem item;
+  item.kind = SettingKind::Disabled;
+  item.label = std::move(label);
+  item.help = std::move(help);
+  return item;
+}
+
 // --- The list engine --------------------------------------------------------
 
 void SettingList::set(std::vector<SettingItem> items) {
@@ -242,6 +250,10 @@ bool SettingList::activate() {
   const SettingItem &item = items_[static_cast<std::size_t>(index)];
   switch (item.kind) {
   case SettingKind::Heading:
+    return false;
+  case SettingKind::Disabled:
+    // Offered, not available: there is nothing Enter could change, and the
+    // cursor cannot even reach the row.
     return false;
   case SettingKind::Text:
     // Read-only, but selectable so a long block can be walked line by line.
@@ -386,6 +398,9 @@ std::string SettingList::displayValue(const SettingItem &item,
   }
   case SettingKind::Text:
     return item.get_text ? item.get_text() : item.label;
+  case SettingKind::Disabled:
+    // The one value a reserved row has: it is not available yet.
+    return "[ ] unavailable";
   case SettingKind::Action:
   case SettingKind::Heading:
     return std::string();
@@ -520,6 +535,18 @@ Element SettingList::render(const Theme &theme, bool focused, int rows,
       }
       if (item.kind == SettingKind::Text) {
         out.push_back(text(line.text) | color(theme.text));
+        break;
+      }
+      if (item.kind == SettingKind::Disabled) {
+        // A reserved row keeps the geometry of the control it will become --
+        // the label column and a value -- and is drawn in the weakest text
+        // role: present, visibly not offered.
+        out.push_back(hbox({
+            text(util::padRight(item.label, kLabelWidth)) |
+                color(theme.weak_text),
+            text(displayValue(item, line.item)) | color(theme.weak_text),
+            filler(),
+        }));
         break;
       }
       {

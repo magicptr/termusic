@@ -1,7 +1,7 @@
 // Test doubles for the playback-context wiring.
 //
 // The Controller and the backend live in `termusic_runtime`, which drags in MPD,
-// FFTW and the whole UI. The DECISIONS this round adds do not: they are the
+// The spectrum FFT and the whole UI. The DECISIONS this round adds do not: they are the
 // snapshot a start takes, how a row is resolved inside it, and how Previous /
 // Next move through it. Those are re-stated here against tiny fakes, so the
 // integration can be checked in a unit test instead of only by hand.

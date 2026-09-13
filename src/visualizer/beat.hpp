@@ -4,9 +4,9 @@ namespace termusic {
 
 /// Rhythm information derived from the LOW end of the spectrum.
 ///
-/// The city skyline needs beat TIMING, not a tempo number: a building pulses
-/// when a kick lands, and the cadence of those pulses is what makes BPM
-/// visible. The analyzer has no beat detector and no tempo estimator, so this
+/// The Spectrum needs beat TIMING, not a tempo number: the onset accents the
+/// axis, and the cadence of those pulses is what makes BPM visible. The
+/// analyzer has no beat detector and no tempo estimator, so this
 /// is the smallest layer that provides the timing: a rolling baseline of
 /// low-band energy, an onset test against that baseline with a refractory
 /// period, and an envelope that jumps to 1 on a beat and decays smoothly.

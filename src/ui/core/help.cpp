@@ -42,16 +42,16 @@ protected:
     }
     line("MPD may run on this machine or on a remote server. The default is");
     line("127.0.0.1:6600; override it with MPD_HOST/MPD_PORT, --host/--port,");
-    line("or Core > Connection (which also saves it).");
-    line("No MPD running? termusic still opens: Core > Connection explains");
+    line("or Core > General (which also saves it).");
+    line("No MPD running? termusic still opens: Core > General explains");
     line("what failed and lets you point it somewhere else.");
 
     heading_row("Structure");
     line("Two roots. Vault holds music, Core holds settings.");
     line("Under Vault: Library is the media database, Playlists are saved");
     line("lists you own, History is what you played.");
-    line("Under Core: Help, Connection, General, Appearance, Keybindings,");
-    line("Plugins. The left column IS the list of settings modules.");
+    line("Under Core: General, Appearance, Keybindings, Plugins, About,");
+    line("Help. The left column IS the list of settings modules.");
 
     heading_row("Getting around");
     line("j / k      move in the tree, and in the open settings pane");
@@ -68,10 +68,11 @@ protected:
     line("collection you started from; Shuffle hands the order to MPD.");
 
     heading_row("Searching");
-    line("/ opens the search box at the bottom and searches what the");
-    line("focused pane shows (the tree, or the track list). The cursor");
-    line("follows what you type. Enter keeps the match, Esc puts the");
-    line("cursor back. n / N walk the accepted match in the track list.");
+    line("/ opens the box at the bottom and filters the TRACK LIST of the");
+    line("collection on screen: only the matching rows stay, and j / k (or");
+    line("Up / Down) walk the results. Enter closes the box, restores the");
+    line("full list and puts the cursor on the chosen track; Esc cancels.");
+    line("n / N walk the accepted match in the full list afterwards.");
 
     heading_row("Playlists");
     line("a          create a playlist");
@@ -102,7 +103,7 @@ protected:
                          ? std::string("(the termusic data directory)")
                          : config.plugin_directory));
     line("Drop a native plugin there and list it under Core > Plugins.");
-    line("MPD server settings live under Core > Connection.");
+    line("MPD server settings live under Core > General.");
     for (SettingItem &item : items)
       item.label = item.label;
     list_.set(std::move(items));

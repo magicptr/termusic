@@ -164,11 +164,11 @@ public:
   virtual bool leaveEditing() { return false; }
 };
 
-std::unique_ptr<SettingsSection> makeHelpSection();
-std::unique_ptr<SettingsSection> makeConnectionSection();
 std::unique_ptr<SettingsSection> makeGeneralSection();
 std::unique_ptr<SettingsSection> makeAppearanceSection();
 std::unique_ptr<SettingsSection> makePluginsSection();
+std::unique_ptr<SettingsSection> makeAboutSection();
+std::unique_ptr<SettingsSection> makeHelpSection();
 
 /// The binding table, which is the one `core` entry the rest of the UI has to
 /// talk to: a key press outside the pane starts a capture inside it, and the

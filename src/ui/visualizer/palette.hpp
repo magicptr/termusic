@@ -1,9 +1,9 @@
 #pragma once
 
-// Palette: how an intensity becomes a colour. Orthogonal to the STYLE -- any
-// style can be drawn in any palette, and a palette knows nothing about bars,
-// waterfall rows or particles. Adding one is one entry in the table plus one
-// ramp function.
+// Palette: how a height becomes a colour. Independent of the RENDERER -- the
+// Spectrum is drawn in whichever ramp is selected, and a palette knows nothing
+// about bars, gradients or the dot baseline. Adding one is one entry in the
+// table plus one ramp function.
 
 #include <string>
 #include <string_view>

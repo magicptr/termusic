@@ -9,7 +9,6 @@
 #include <utility>
 
 #include "ui/visualizer/palette.hpp"
-#include "ui/visualizer/renderer.hpp"
 #include "util/text.hpp"
 
 namespace termusic {
@@ -23,7 +22,6 @@ Controller::Controller(MpdBackend &backend, AppState &state, Config &config,
   state_.focus = state_.page == Page::Library
                      ? FocusArea::Library
                      : FocusArea::Settings;
-  state_.visualizer.enabled = config_.visualizer_enabled;
   state_.visualizer.sensitivity = config_.visualizer_sensitivity;
   // Until main() hands over the resolved endpoint, the stored configuration is
   // the best answer available.
@@ -691,11 +689,6 @@ void Controller::setStartPage(Page page) {
   syncSettingsState();
   saveConfig();
 }
-void Controller::setVisualizerEnabled(bool enabled) {
-  config_.visualizer_enabled = enabled;
-  state_.visualizer.enabled = enabled;
-  saveConfig();
-}
 void Controller::setVisualizerSensitivity(float sensitivity) {
   config_.visualizer_sensitivity = std::clamp(sensitivity, 0.1F, 5.0F);
   state_.visualizer.sensitivity = config_.visualizer_sensitivity;
@@ -709,11 +702,6 @@ void Controller::setVisualizerRefreshHz(int refresh_hz) {
 void Controller::setVisualizerDensity(int density) {
   config_.visualizer_bar_density = std::clamp(density, 32, 96);
   syncSettingsState();
-  saveConfig();
-}
-void Controller::setVisualizerStyle(const std::string &style) {
-  config_.visualizer_style =
-      std::string(ui::normalizeVisualizerStyleId(style));
   saveConfig();
 }
 void Controller::setVisualizerPalette(const std::string &palette) {
@@ -750,9 +738,9 @@ void Controller::setMpdConnection(std::string host, int port,
   connection_.password = config_.mpd_password;
   connection_.timeout_ms = config_.mpd_timeout_ms;
   connection_.auto_reconnect = config_.auto_reconnect;
-  connection_.host_source = "Core > Connection";
-  connection_.port_source = "Core > Connection";
-  connection_.password_source = "Core > Connection";
+  connection_.host_source = "Core > General";
+  connection_.port_source = "Core > General";
+  connection_.password_source = "Core > General";
   // A new endpoint: the automatic retry ladder starts over.
   ++connection_epoch_;
   syncSettingsState();
