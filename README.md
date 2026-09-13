@@ -1,121 +1,66 @@
 # termusic
 
-termusic is a keyboard-driven terminal music client for
-[MPD](https://www.musicpd.org/).
+termusic 是一款轻量、键盘驱动的 MPD（Music Player Daemon）终端音乐客户端。它提供音乐库浏览、播放控制、歌曲搜索、播放列表管理、主题切换、播放历史、插件扩展和频谱可视化，并支持连接本机或远程 MPD 服务。
 
-It provides a terminal interface for browsing your music library, controlling
-playback, searching tracks, managing playlists, changing themes and viewing a
-spectrum visualizer.
+## 依赖
 
-## Dependencies
+- 支持 C++20 的编译器
+- CMake 3.20 或更高版本
+- Git
+- Meson
+- Ninja
+- 可访问的 MPD 服务
 
-### Ubuntu / Debian
+Ubuntu / Debian：
 
 ```bash
 sudo apt update
-sudo apt install build-essential cmake git meson ninja-build mpd
+sudo apt install build-essential cmake git meson ninja-build
 ```
 
-### Fedora
+Fedora：
 
 ```bash
-sudo dnf install gcc-c++ make cmake git meson ninja-build mpd
+sudo dnf install gcc-c++ cmake git meson ninja-build
 ```
 
-## Build
+FTXUI、libmpdclient 和 kissfft 会在首次构建时自动下载并静态链接，无需单独安装对应的开发包。
+如果没有可连接的远程 MPD 服务，还需在本机安装并配置 `mpd`。
 
-Clone the repository:
+## 克隆与使用
 
 ```bash
 git clone https://github.com/magicptr/termusic.git
 cd termusic
-```
-
-Build:
-
-```bash
-cmake -S . -B build
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
 cmake --build build -j
-```
-
-Run directly:
-
-```bash
 ./build/termusic
 ```
 
-## Install
+termusic 默认连接 `127.0.0.1:6600`。连接远程 MPD 服务时可使用：
 
-Install system-wide:
+```bash
+./build/termusic --host <MPD_HOST> --port <MPD_PORT>
+```
+
+## 安装
+
+安装到系统：
 
 ```bash
 sudo cmake --install build
-```
-
-Then start termusic from any terminal:
-
-```bash
 termusic
 ```
 
-To install for the current user only:
+仅安装到当前用户：
 
 ```bash
-cmake -S . -B build -DCMAKE_INSTALL_PREFIX="$HOME/.local"
-cmake --build build -j
-cmake --install build
+cmake --install build --prefix "$HOME/.local"
+termusic
 ```
 
-## Keyboard Shortcuts
+如果 `$HOME/.local/bin` 不在 `PATH` 中，可直接运行：
 
-### Global
-
-| Key | Action |
-|---|---|
-| `q` | Quit |
-| `Esc` | Cancel / Back |
-| `Space` | Play / Pause |
-| `1` | Vault |
-| `2` | Core |
-| `i` | Immersive view |
-| `r` | Toggle repeat |
-| `s` | Toggle shuffle |
-| `/` | Search |
-
-### Navigation
-
-| Key | Action |
-|---|---|
-| `j` / `k` | Move down / up |
-| `h` / `l` | Move left / right |
-| `Enter` | Open / Play |
-| `g g` / `G` | First / last item |
-| `PageUp` / `PageDown` | Move by page |
-
-### Track List
-
-| Key | Action |
-|---|---|
-| `Enter` | Play selected track |
-| `v` | Visual selection |
-| `y y` | Yank |
-| `d d` | Delete |
-| `n` / `N` | Next / previous search result |
-
-### Immersive View
-
-| Key | Action |
-|---|---|
-| `Space` | Play / Pause |
-| `h` / `l` | Previous / next track |
-| `j` / `k` | Volume down / up |
-| `,` / `.` | Seek backward / forward |
-| `i` / `Esc` | Exit immersive view |
-
-Most shortcuts can be changed in **Core → Keybindings**.
-
-## Contact
-
-If you have any problems while using termusic, please contact:
-
-**33333@gmail.com**
+```bash
+"$HOME/.local/bin/termusic"
+```

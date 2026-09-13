@@ -1,25 +1,9 @@
-# --- published binaries -----------------------------------------------------
-# The executables a build produces -- `cmake -S . -B build` writes build/termusic
-# -- are generated, never committed.
-build/termusic
-build/termusic-debug
-
 # --- build output -----------------------------------------------------------
-# `cmake -S . -B build`, the documented build, and every other build tree stay
-# out of the repository: the cmake/ninja/make trees (release/, dev/, debug/,
-# asan/, sanitize*/), the fetched FTXUI and kissfft sources CMake keeps inside
-# them, the bundled libmpdclient prefix under _deps/, and the local livecheck
-# harness with its fixtures and captures.
-#
-# The hand-written build/*.sh entry points ARE source -- they are developer
-# convenience wrappers around this same CMake build -- so they are re-included.
-/build/*
-!/build/*.sh
+# CMake output, downloaded dependencies, binaries and local diagnostics.
+/build/
 
 # --- generated IDE trees ----------------------------------------------------
-# CMake/IDE integrations write their own output tree and configure presets that
-# hard-code this machine's compiler paths. They are a developer convenience:
-# neither is needed to build termusic.
+# CMake/IDE integrations may contain machine-specific compiler paths.
 out/
 CMakePresets.json
 CMakeUserPresets.json
