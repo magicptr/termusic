@@ -24,18 +24,28 @@ set(KISSFFT_TEST OFF CACHE BOOL "" FORCE)
 set(KISSFFT_TOOLS OFF CACHE BOOL "" FORCE)
 set(KISSFFT_PKGCONFIG OFF CACHE BOOL "" FORCE)
 
-FetchContent_Declare(kissfft
-  GIT_REPOSITORY "${TERMUSIC_KISSFFT_REPOSITORY}"
-  GIT_TAG "${TERMUSIC_KISSFFT_VERSION}"
-  GIT_SHALLOW TRUE
-)
-# Populate + add_subdirectory(EXCLUDE_FROM_ALL) instead of MakeAvailable: the
-# subdirectory's install rules are then ignored, which is what keeps the
-# third-party headers and archives out of `cmake --install` and out of every
-# package. (MakeAvailable would add it as an ordinary subdirectory, and its
-# install() rules would run with ours.)
-FetchContent_Populate(kissfft)
-add_subdirectory("${kissfft_SOURCE_DIR}" "${kissfft_BINARY_DIR}" EXCLUDE_FROM_ALL)
+# FetchContent gained native EXCLUDE_FROM_ALL support in CMake 3.28. Use its
+# recommended MakeAvailable API where possible, while keeping the project
+# compatible with its CMake 3.20 minimum. The older branch is only reached on
+# CMake versions where direct Populate is not deprecated.
+if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.28)
+  FetchContent_Declare(kissfft
+    GIT_REPOSITORY "${TERMUSIC_KISSFFT_REPOSITORY}"
+    GIT_TAG "${TERMUSIC_KISSFFT_VERSION}"
+    GIT_SHALLOW TRUE
+    EXCLUDE_FROM_ALL
+  )
+  FetchContent_MakeAvailable(kissfft)
+else()
+  FetchContent_Declare(kissfft
+    GIT_REPOSITORY "${TERMUSIC_KISSFFT_REPOSITORY}"
+    GIT_TAG "${TERMUSIC_KISSFFT_VERSION}"
+    GIT_SHALLOW TRUE
+  )
+  FetchContent_Populate(kissfft)
+  add_subdirectory("${kissfft_SOURCE_DIR}" "${kissfft_BINARY_DIR}"
+                   EXCLUDE_FROM_ALL)
+endif()
 
 message(STATUS "kissfft: embedded ${TERMUSIC_KISSFFT_VERSION} "
                "(static, single precision)")
