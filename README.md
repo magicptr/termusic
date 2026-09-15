@@ -94,9 +94,21 @@ audio_output {
     name       "Desktop audio"
     mixer_type "software"
 }
+
+# Required by the visualizer when MPD and termusic run on the same machine.
+audio_output {
+    type   "fifo"
+    name   "termusic visualizer"
+    path   "/tmp/mpd.fifo"
+    format "44100:16:2"
+}
 ```
 
-The `audio_output` block selects desktop audio and enables volume control from termusic. If a track is playing but there is no sound or its volume stays at zero, keep `mixer_type "software"`. The configured `pulse` output works with PulseAudio and PipeWire systems that provide `pipewire-pulse`; otherwise change only `type` to `pipewire` or `alsa`.
+The first output provides sound and volume control. If a track is playing but there is no sound or its volume stays at zero, keep `mixer_type "software"`. The configured `pulse` output works with PulseAudio and PipeWire systems that provide `pipewire-pulse`; otherwise change only its `type` to `pipewire` or `alsa`.
+
+The second output sends audio data to termusic's visualizer. Its path and format must remain `/tmp/mpd.fifo` and `44100:16:2`, matching termusic's defaults. Without this output, music can play normally but the visualizer remains empty.
+
+For a remote MPD server, this FIFO is created on the remote machine, not on the computer running termusic. The MPD network connection provides playback control and library data but does not carry the visualization audio stream, so the visualizer remains empty unless that PCM stream is forwarded separately to the local `/tmp/mpd.fifo`.
 
 ### Start MPD
 
