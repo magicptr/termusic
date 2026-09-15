@@ -193,10 +193,16 @@ int SettingList::nextSelectable(int from, int delta) const {
   int index = from;
   for (int step = 0; step < count; ++step) {
     index += delta;
-    if (index < 0)
+    if (index < 0) {
+      if (!wrap_navigation_)
+        return std::clamp(from, 0, count - 1);
       index = count - 1;
-    if (index >= count)
+    }
+    if (index >= count) {
+      if (!wrap_navigation_)
+        return std::clamp(from, 0, count - 1);
       index = 0;
+    }
     if (items_[static_cast<std::size_t>(index)].selectable())
       return index;
   }
@@ -265,10 +271,12 @@ bool SettingList::activate() {
     }
     return false;
   case SettingKind::Input:
-    // A text field opens WITH its value: a host name is usually tweaked, not
-    // retyped.
+    // Inputs are replacement editors. The lightweight settings field has no
+    // caret or selection model, so retaining the old host made typing a remote
+    // IP append it to "127.0.0.1". Start empty and let Enter commit the new
+    // value; Esc still cancels without calling the setter.
     editing_ = index;
-    buffer_ = item.get_text ? item.get_text() : std::string();
+    buffer_.clear();
     return true;
   case SettingKind::Number:
     // A number opens EMPTY: it is replaced, not appended to. Committing an

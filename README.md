@@ -14,23 +14,77 @@ termusic is a lightweight, keyboard-driven terminal music client for MPD (Music 
 - Git
 - Meson
 - Ninja
-- Access to an MPD server
+- MPD (the playback backend), either on this computer or a remote server
 
-Ubuntu / Debian:
+For a complete local installation on Ubuntu / Debian:
 
 ```bash
 sudo apt update
-sudo apt install build-essential cmake git meson ninja-build
+sudo apt install build-essential cmake git meson ninja-build mpd mpc
 ```
 
-Fedora:
+For a complete local installation on Fedora:
 
 ```bash
-sudo dnf install gcc-c++ cmake git meson ninja-build
+sudo dnf install gcc-c++ cmake git meson ninja-build mpd mpc
 ```
 
 FTXUI, libmpdclient, and kissfft are downloaded automatically during the first build and linked statically, so their development packages do not need to be installed separately.
-If you do not have access to a remote MPD server, install and configure `mpd` locally.
+
+If you already use an MPD server on another computer, `mpd` and `mpc` are not required locally. Packages and source releases for other platforms are available from the [official MPD download page](https://www.musicpd.org/download.html).
+
+## Set up a local MPD backend
+
+The following setup runs MPD as your own user, so it can read music in your home directory and use your desktop audio session. First, stop the distribution's system-wide MPD service if it was started automatically:
+
+```bash
+sudo systemctl disable --now mpd.service mpd.socket 2>/dev/null || true
+```
+
+Create the music, playlist, data, and configuration directories:
+
+```bash
+mkdir -p "$HOME/Music" "$HOME/.config/mpd" "$HOME/.local/share/mpd/playlists"
+```
+
+Create `$HOME/.config/mpd/mpd.conf` with this content:
+
+```conf
+music_directory    "~/Music"
+playlist_directory "~/.local/share/mpd/playlists"
+db_file            "~/.local/share/mpd/database"
+log_file           "~/.local/share/mpd/log"
+pid_file           "~/.local/share/mpd/pid"
+state_file         "~/.local/share/mpd/state"
+sticker_file       "~/.local/share/mpd/sticker.sql"
+
+bind_to_address "127.0.0.1"
+port            "6600"
+auto_update     "yes"
+```
+
+When no `audio_output` is specified, MPD automatically selects an available PipeWire, PulseAudio, or ALSA output. Start MPD now and automatically after future logins:
+
+```bash
+systemctl --user enable --now mpd
+```
+
+If your distribution does not provide the user service, start the daemon directly instead:
+
+```bash
+mpd "$HOME/.config/mpd/mpd.conf"
+```
+
+Copy or move at least one supported audio file into `$HOME/Music`, update the database, and verify the backend:
+
+```bash
+cp /path/to/your/song.mp3 "$HOME/Music/"
+mpc update
+mpc status
+mpc outputs
+```
+
+`mpc status` should connect without an error, and `mpc outputs` should show at least one enabled output. The local backend is now ready at `127.0.0.1:6600`.
 
 ## Clone
 

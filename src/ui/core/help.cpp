@@ -31,20 +31,45 @@ protected:
       items.push_back(note(std::move(text)));
     };
 
-    heading_row("Backend");
-    line("termusic uses MPD for playback and never starts, stops or");
-    line("configures it: the MPD daemon is owned by you or your system.");
+    heading_row("Quick reference");
+    line("j / k      move down / up in the focused list");
+    line("h / l      move to the tree / move to the content pane");
+    line("Enter      open, confirm, edit a setting, or play a track");
+    line("g g / G    jump to the first / last row");
+    line("PageDown / PageUp, or Ctrl+d / Ctrl+u in tracks, move a page");
+    line("1 / 2      open Vault / Core");
+    line("Space      play or pause");
+    line("i          open or close Now Playing");
+    line("Esc / q    close the current view / quit termusic");
+
+    heading_row("MPD connection");
+    line("MPD is the only playback backend. Switching backend means");
+    line("connecting termusic to a different local or remote MPD server.");
     {
       const ConnectionSettings &effective = context.controller.connection();
-      line("Endpoint  " + effective.host + ":" +
+      line("Current  " + effective.host + ":" +
            std::to_string(effective.port) + "  (" + effective.host_source +
            ")");
     }
-    line("MPD may run on this machine or on a remote server. The default is");
-    line("127.0.0.1:6600; override it with MPD_HOST/MPD_PORT, --host/--port,");
-    line("or Core > General (which also saves it).");
-    line("No MPD running? termusic still opens: Core > General explains");
-    line("what failed and lets you point it somewhere else.");
+    line("Local default: 127.0.0.1:6600.");
+    line("Saved switch: press 2, open General with l, and move to Host.");
+    line("Press Enter, type the new DNS name or IP, then press Enter again.");
+    line("Edit Port and Password the same way when needed, then select Save");
+    line("and reconnect and press Enter.");
+    line("To return to the local backend, set Host to 127.0.0.1 and Port");
+    line("to 6600, then run Save and reconnect again.");
+
+    heading_row("Remote MPD");
+    line("Set Host to the remote server's DNS name or IP address, Port to");
+    line("its MPD port (normally 6600), and Password only if required.");
+    line("For one run: termusic --host musicbox.lan --port 6600");
+    line("Environment: MPD_HOST=musicbox.lan MPD_PORT=6600 termusic");
+    line("Command line overrides environment, which overrides saved config.");
+    line("The remote MPD must listen on a reachable address and allow your");
+    line("client through its permissions and firewall. Music stays on the");
+    line("MPD server; paths shown in Library belong to that server.");
+    line("termusic never starts or configures the MPD daemon. If connection");
+    line("fails, Core > General shows the endpoint and failure reason.");
 
     heading_row("Structure");
     line("Two roots. Vault holds music, Core holds settings.");
@@ -53,12 +78,11 @@ protected:
     line("Under Core: General, Appearance, Keybindings, Plugins, About,");
     line("Help. The left column IS the list of settings modules.");
 
-    heading_row("Getting around");
-    line("j / k      move in the tree, and in the open settings pane");
-    line("h / l      leave the pane / enter it");
-    line("Enter      open a collection, a settings module, or a setting");
-    line("g g / G    first / last row");
-    line("1 / 2      jump to the Vault root / the Core root");
+    heading_row("Moving and selecting");
+    line("The highlighted pane owns the keys. Use h / l to cross between");
+    line("the left tree and right track/settings pane, then j / k to move.");
+    line("In a track list, v starts visual selection. Extend it with j / k;");
+    line("y copies the selected tracks, while Esc cancels the selection.");
 
     heading_row("Playing");
     line("Enter on a track plays it and makes that collection the");
@@ -74,11 +98,15 @@ protected:
     line("full list and puts the cursor on the chosen track; Esc cancels.");
     line("n / N walk the accepted match in the full list afterwards.");
 
-    heading_row("Playlists");
-    line("a          create a playlist");
-    line("r          rename the highlighted playlist");
-    line("d d        delete the highlighted playlist");
-    line("p          paste the register into the highlighted playlist");
+    heading_row("Playlist workflow");
+    line("Create: in either Vault pane press a, type a name, then Enter.");
+    line("Add one song: highlight it in the track pane and press y y.");
+    line("Add many: press v, select with j / k, then press y.");
+    line("Paste: press h, highlight the destination playlist with j / k,");
+    line("then press p. The copied song or selection is appended to it.");
+    line("Open a playlist and press l to edit its tracks: K / J moves the");
+    line("highlighted song up / down, and d d removes it.");
+    line("On a playlist in the tree, r renames it and d d deletes it.");
     line("Every listed playlist is a real saved playlist you own; none of");
     line("them is reserved, and MPD's runtime queue is not a collection.");
 
@@ -107,6 +135,9 @@ protected:
     for (SettingItem &item : items)
       item.label = item.label;
     list_.set(std::move(items));
+    // Help is a long document, not a cyclic settings form. Keep the final line
+    // visible when the user reaches it instead of wrapping back to the top.
+    list_.setWrapNavigation(false);
   }
 };
 

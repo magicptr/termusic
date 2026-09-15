@@ -103,6 +103,10 @@ public:
   void set(std::vector<SettingItem> items);
   const std::vector<SettingItem> &items() const { return items_; }
   std::size_t size() const { return items_.size(); }
+  /// Controls whether moving past the first/last selectable row wraps around.
+  /// Forms keep cyclic navigation; long read-only documents can clamp at their
+  /// boundaries so reaching the end does not unexpectedly jump to the top.
+  void setWrapNavigation(bool wrap) { wrap_navigation_ = wrap; }
 
   /// True while a field is taking typed text.
   bool editing() const { return editing_ >= 0; }
@@ -151,6 +155,7 @@ private:
   /// changes when Enter confirms, so Esc leaves the active value untouched.
   int open_select_ = -1;
   int candidate_ = 0;
+  bool wrap_navigation_ = true;
 };
 
 /// A section that is nothing but a setting list: the shape almost every `core`

@@ -91,14 +91,16 @@ protected:
     items.push_back(input(
         "Host", [this] { return host_; },
         [this](const std::string &value) { host_ = value; },
-        "Empty uses MPD_HOST, then the default host."));
+        "Enter, type the replacement host or IP, then Enter again. Empty uses "
+        "MPD_HOST, then the default host."));
     items.push_back(number("Port", [this] { return port_; },
                            [this](int value) { port_ = value; }, 0, 65535, 1,
                            std::string(), 1, "0 uses MPD_PORT, then 6600."));
     items.push_back(input(
         "Password", [this] { return password_; },
         [this](const std::string &value) { password_ = value; },
-        "Only when the server requires one.", true));
+        "Enter and type a replacement. Leave empty when the server requires "
+        "no password.", true));
     items.push_back(toggle(
         "Auto reconnect", [this] { return context_->config().auto_reconnect; },
         [this](bool value) {
