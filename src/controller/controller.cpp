@@ -126,10 +126,8 @@ bool Controller::reconnect() {
   refreshPlayer();
   refreshQueue();
   refreshPlaylists();
-  // Connecting is OBSERVATIONAL: status, current song, queue, database and
-  // playlist names are read, and nothing on the server is written. In
-  // particular no saved playlist is created, cleared, rebuilt or deleted -- a
-  // generic name like "default" belongs to the user.
+  // Default is a virtual database view, so connecting only reads MPD state and
+  // never creates or rewrites a stored playlist on the server.
   refreshLibrary();
   return true;
 }
@@ -167,7 +165,7 @@ void Controller::handleBackendEvent(BackendEvent changed) {
     // The media database changed. Refresh Library if it is the displayed
     // source, then re-mirror `default` -- this is the authoritative
     // "database content actually changed" trigger.
-    if (state_.library.database_view)
+    if (state_.library.database_view || state_.library.current == 0)
       refreshLibrary();
   }
   if (hasEvent(changed, BackendEvent::Update)) {
@@ -318,9 +316,7 @@ void Controller::execute(Action action) {
     moveQueueItem(1);
     break;
   case Action::LoadPlaylistToQueue:
-    // `database_view` -- not the index -- says whether a SAVED playlist is the
-    // displayed source: index 0 is a real playlist like every other one.
-    if (!state_.library.database_view && state_.library.current >= 0 &&
+    if (!state_.library.database_view && state_.library.current > 0 &&
         state_.library.current <
             static_cast<int>(state_.library.playlists.size())) {
       reportResult(
@@ -413,9 +409,7 @@ const std::vector<Song> &Controller::historySongs() const {
 
 bool Controller::moveCurrentPlaylistItem(int position, int delta) {
   const int current = state_.library.current;
-  // A saved playlist is user-owned whatever it is called, so reordering is
-  // allowed for every one of them; only a non-playlist collection is refused.
-  if (state_.library.database_view || current < 0 ||
+  if (state_.library.database_view || current <= 0 ||
       current >= static_cast<int>(state_.library.playlists.size()))
     return false;
   const std::string name =
@@ -469,10 +463,8 @@ void Controller::applyQueueFilter() {
 void Controller::refreshPlaylists() {
   if (!backend_.connected())
     return;
-  // The list is EXACTLY what MPD reports: every saved playlist, whatever it is
-  // called, and nothing else. MPD's runtime queue is not a playlist and gets no
-  // entry here, so a user playlist called "default" is listed once and is never
-  // shadowed, renamed or rewritten by the application.
+  // Default is always first and mirrors the database. A same-named stored
+  // playlist is hidden because that name is reserved by the application.
   std::string selected;
   if (state_.library.current >= 0 &&
       state_.library.current <
@@ -480,7 +472,8 @@ void Controller::refreshPlaylists() {
     selected = state_.library.playlists[static_cast<std::size_t>(
         state_.library.current)];
   }
-  state_.library.playlists = backend_.listPlaylists();
+  state_.library.playlists =
+      playlistsWithDefault(backend_.listPlaylists());
   const auto found = std::find(state_.library.playlists.begin(),
                                state_.library.playlists.end(), selected);
   state_.library.current =
@@ -494,7 +487,7 @@ void Controller::refreshLibrary() {
   if (!backend_.connected())
     return;
   state_.library.loading = true;
-  if (state_.library.database_view) {
+  if (state_.library.database_view || state_.library.current == 0) {
     state_.library.songs = backend_.fetchAllSongs();
   } else if (!state_.library.playlists.empty()) {
     state_.library.current = std::clamp(
@@ -565,7 +558,7 @@ int Controller::removeQueueEntries(const std::vector<unsigned> &queue_ids) {
 
 int Controller::removePlaylistEntries(std::string_view name,
                                       const std::vector<unsigned> &positions) {
-  if (name.empty())
+  if (name.empty() || isDefaultPlaylistName(name))
     return 0;
   int removed = 0;
   // The backend addresses playlist entries by position, so deleting from the
@@ -584,7 +577,8 @@ int Controller::removePlaylistEntries(std::string_view name,
 }
 
 int Controller::pasteRegisterToPlaylist(std::string_view name) {
-  if (state_.music_register.empty() || name.empty())
+  if (state_.music_register.empty() || name.empty() ||
+      isDefaultPlaylistName(name))
     return 0;
   int added = 0;
   for (const TrackRef &ref : state_.music_register.tracks) {
@@ -751,9 +745,7 @@ void Controller::setMpdConnection(std::string host, int port,
 }
 
 bool Controller::createPlaylist(std::string_view name) {
-  // "Library" stays reserved because the tree already has a node with that
-  // label. Nothing else is: "default" is an ordinary user name.
-  if (name.empty() || name == "Library") {
+  if (name.empty() || name == "Library" || isDefaultPlaylistName(name)) {
     toast("Playlist name is invalid");
     return false;
   }
@@ -772,10 +764,10 @@ bool Controller::createPlaylist(std::string_view name) {
 }
 
 bool Controller::renameCurrentPlaylist(std::string_view name) {
-  if (state_.library.database_view || state_.library.current < 0 ||
+  if (state_.library.database_view || state_.library.current <= 0 ||
       state_.library.current >=
           static_cast<int>(state_.library.playlists.size()) ||
-      name.empty() || name == "Library")
+      name.empty() || name == "Library" || isDefaultPlaylistName(name))
     return false;
   const std::string old_name =
       state_.library
@@ -796,6 +788,10 @@ bool Controller::renameCurrentPlaylist(std::string_view name) {
 }
 
 bool Controller::deleteCurrentPlaylist() {
+  if (!state_.library.database_view && state_.library.current == 0) {
+    toast("Default cannot be deleted");
+    return false;
+  }
   if (state_.library.database_view || state_.library.current < 0 ||
       state_.library.current >=
           static_cast<int>(state_.library.playlists.size())) {
@@ -817,7 +813,7 @@ bool Controller::deleteCurrentPlaylist() {
 
 bool Controller::addSelectedToPlaylist(int playlist_index) {
   const Song *song = selectedSong();
-  if (song == nullptr || playlist_index < 0 ||
+  if (song == nullptr || playlist_index <= 0 ||
       playlist_index >= static_cast<int>(state_.library.playlists.size())) {
     toast("Choose a saved playlist first");
     return false;
@@ -979,8 +975,8 @@ bool Controller::collectionExists(const PlaybackCollection &collection) const {
   }
   if (collection.name.empty())
     return false;
-  // Every listed name is a real saved playlist -- the first one included. A run
-  // owned by the first playlist must keep its marker after a refresh.
+  // Default and saved playlists all remain valid playback contexts while they
+  // are present in the ordered model.
   for (std::size_t index = 0; index < state_.library.playlists.size();
        ++index) {
     if (state_.library.playlists[index] == collection.name)

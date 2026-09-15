@@ -1062,9 +1062,8 @@ std::vector<float> fallbackSpectrum(int bands, double seconds) {
 } // namespace
 
 void Application::syncTreeFromPlaylists() {
-  // EVERY entry `library.playlists` holds is a real saved playlist: MPD's
-  // runtime queue is not a collection and has no place in this list. The whole
-  // list gets a row, from index 0 on.
+  // The controller keeps virtual Default at index 0, followed by MPD's saved
+  // playlists. Every entry gets a tree row.
   std::string signature;
   std::vector<std::pair<std::string, std::string>> entries;
   for (std::size_t index = 0; index < state_.library.playlists.size(); ++index) {
@@ -1163,8 +1162,6 @@ void Application::loadTreeNode() {
     return;
   }
   if (node->type == TreeNodeType::Playlist) {
-    // EVERY entry is a real saved playlist, the FIRST one included: no
-    // synthetic live row occupies index 0 any more.
     for (std::size_t index = 0; index < state_.library.playlists.size();
          ++index) {
       if (state_.library.playlists[index] == node->label) {
@@ -1462,11 +1459,10 @@ bool Application::performKeymapAction(Action action) {
       pasteRegisterToTreeSelection();
     return true;
   case Action::RenamePlaylist: {
-    // Only a real saved playlist can be renamed; the database and History are
-    // not collections a user may rename.
     const int index = treePlaylistIndex();
-    if (index < 0) {
-      visual_message_ = "Not a saved playlist";
+    if (index <= 0) {
+      visual_message_ = index == 0 ? "Default cannot be renamed"
+                                   : "Not a saved playlist";
       visual_message_error_ = true;
       return true;
     }
@@ -1480,8 +1476,10 @@ bool Application::performKeymapAction(Action action) {
   case Action::DeletePlaylist: {
     // `dd` only ever deletes a saved playlist; a collection entry is removed
     // with DeleteCurrent from the Track list.
-    if (treePlaylistIndex() < 0) {
-      visual_message_ = "Not a saved playlist";
+    const int index = treePlaylistIndex();
+    if (index <= 0) {
+      visual_message_ = index == 0 ? "Default cannot be deleted"
+                                   : "Not a saved playlist";
       visual_message_error_ = true;
       return true;
     }
@@ -1889,6 +1887,9 @@ std::string Application::readOnlyReason() const {
   if (active_collection_ == ActiveCollection::History)
     return "History is generated from playback";
   if (active_collection_ == ActiveCollection::Playlist &&
+      active_playlist_index_ == 0)
+    return "Default mirrors the media library";
+  if (active_collection_ == ActiveCollection::Playlist &&
       active_playlist_index_ < 0)
     return "This is not a saved playlist";
   return "Collection is read-only";
@@ -2143,8 +2144,6 @@ int Application::treePlaylistIndex() const {
   const TreeNode *node = workspace_tree_.current();
   if (node == nullptr || node->type != TreeNodeType::Playlist)
     return -1;
-  // Index 0 is a real playlist like any other: `dd` in the tree deletes the
-  // FIRST saved playlist as readily as the last one.
   for (std::size_t index = 0; index < state_.library.playlists.size(); ++index) {
     if (state_.library.playlists[index] == node->label)
       return static_cast<int>(index);
@@ -2156,9 +2155,9 @@ bool Application::collectionWritable() const {
   // Only a SAVED playlist accepts entry edits. Library is the media database
   // and History is generated from playback -- an edit to either would destroy a
   // source file or write to something the user did not select. A saved playlist
-  // is user-owned whatever it is called, including one called "default".
+  // is user-owned. Index 0 is the virtual Default mirror and remains read-only.
   return active_collection_ == ActiveCollection::Playlist &&
-         active_playlist_index_ >= 0;
+         active_playlist_index_ > 0;
 }
 
 int Application::deleteRange(int lo, int hi) {
@@ -2326,14 +2325,21 @@ void Application::commitPlaylistPrompt() {
   playlist_prompt_text_.clear();
   if (renaming) {
     const int index = treePlaylistIndex();
-    if (index < 0) {
-      visual_message_ = "Not a saved playlist";
+    if (index <= 0) {
+      visual_message_ = index == 0 ? "Default cannot be renamed"
+                                   : "Not a saved playlist";
       visual_message_error_ = true;
       screen_.PostEvent(Event::Custom);
       return;
     }
     if (name.empty()) {
       visual_message_ = "Playlist name required";
+      screen_.PostEvent(Event::Custom);
+      return;
+    }
+    if (name == "Library" || isDefaultPlaylistName(name)) {
+      visual_message_ = "Playlist name is reserved";
+      visual_message_error_ = true;
       screen_.PostEvent(Event::Custom);
       return;
     }
@@ -2350,6 +2356,12 @@ void Application::commitPlaylistPrompt() {
   }
   if (name.empty()) {
     visual_message_ = "Playlist name required";
+    screen_.PostEvent(Event::Custom);
+    return;
+  }
+  if (name == "Library" || isDefaultPlaylistName(name)) {
+    visual_message_ = "Playlist name is reserved";
+    visual_message_error_ = true;
     screen_.PostEvent(Event::Custom);
     return;
   }
@@ -2389,6 +2401,11 @@ void Application::pasteRegisterToTreeSelection() {
     return;
   }
   if (node->type == TreeNodeType::Playlist) {
+    if (isDefaultPlaylistName(node->id)) {
+      visual_message_ = "Default mirrors the media library";
+      visual_message_error_ = true;
+      return;
+    }
     const int added = controller_.pasteRegisterToPlaylist(node->id);
     visual_message_ = added > 0 ? "Added " + std::to_string(added) +
                                       " tracks to \"" + node->label + "\""
@@ -2513,12 +2530,8 @@ Element Application::renderTreePane() {
   for (int index = tree_scroll_; index < last; ++index) {
     const TreeNode &node = nodes[static_cast<std::size_t>(index)];
     const bool is_cursor = index == cursor;
-    // The ACTIVE collection is independent of the cursor: the cursor may be
-    // parked on the Playlists group while `default` stays open. Identity comes
-    // from the model (node type + the active playlist name), never from a
-    // display string comparison against a hard-coded "default".
-    // The open collection is identified by its node's own IDENTITY: the saved
-    // playlist's name, or the database/history node type. No name is special.
+    // The ACTIVE collection is independent of the cursor: identity comes from
+    // the node type and active playlist name, not the cursor row.
     const bool is_saved_playlist_active =
         node.type == TreeNodeType::Playlist &&
         active_collection_ == ActiveCollection::Playlist &&
@@ -4589,9 +4602,6 @@ void Application::dispatch(Action action) {
       openModal(Modal::NewPlaylist);
     return;
   case Action::RenamePlaylist:
-    // The FIRST saved playlist is as renameable as the last one: "is a saved
-    // playlist being browsed", not "is the index past the first row", is the
-    // question.
     if (state_.page == Page::Library && collectionWritable())
       openModal(Modal::RenamePlaylist);
     return;
@@ -4621,20 +4631,18 @@ void Application::selectPage(int index) {
 }
 
 void Application::openModal(Modal modal) {
-  // Rename and delete need a SAVED playlist that is actually loaded, and the
-  // first one counts: the old "index 0 is not a playlist" test would have
-  // refused to touch it.
+  // Rename and delete apply only to stored playlists; index 0 is Default.
   if ((modal == Modal::RenamePlaylist || modal == Modal::DeletePlaylist) &&
-      (state_.library.database_view || state_.library.current < 0 ||
+      (state_.library.database_view || state_.library.current <= 0 ||
        state_.library.current >=
            static_cast<int>(state_.library.playlists.size()))) {
     return;
   }
   if (modal == Modal::ChoosePlaylist) {
-    // The menu lists the REAL saved playlists, in MPD's own order, and the
-    // selected row IS the playlist index -- there is no synthetic first entry
-    // to skip over.
-    playlist_target_rows_ = state_.library.playlists;
+    playlist_target_rows_.assign(
+        state_.library.playlists.begin() +
+            std::min<std::size_t>(1, state_.library.playlists.size()),
+        state_.library.playlists.end());
     playlist_target_ = 0;
   }
   if (modal == Modal::ChoosePlaylist && playlist_target_rows_.empty()) {
@@ -4672,7 +4680,7 @@ void Application::confirmModal() {
     controller_.deleteCurrentPlaylist();
     break;
   case Modal::ChoosePlaylist:
-    controller_.addSelectedToPlaylist(playlist_target_);
+    controller_.addSelectedToPlaylist(playlist_target_ + 1);
     break;
   case Modal::None:
     return;

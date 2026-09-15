@@ -14,31 +14,58 @@ termusic is a lightweight, keyboard-driven terminal music client for MPD (Music 
 - Git
 - Meson
 - Ninja
-- MPD (the playback backend), either on this computer or a remote server
 
-For a complete local installation on Ubuntu / Debian:
+Install the build dependencies on Ubuntu / Debian:
 
 ```bash
 sudo apt update
-sudo apt install build-essential cmake git meson ninja-build mpd mpc
+sudo apt install build-essential cmake git meson ninja-build
 ```
 
-For a complete local installation on Fedora:
+Install the build dependencies on Fedora:
 
 ```bash
-sudo dnf install gcc-c++ cmake git meson ninja-build mpd mpc
+sudo dnf install gcc-c++ cmake git meson ninja-build
 ```
 
 FTXUI, libmpdclient, and kissfft are downloaded automatically during the first build and linked statically, so their development packages do not need to be installed separately.
 
-If you already use an MPD server on another computer, `mpd` and `mpc` are not required locally. Packages and source releases for other platforms are available from the [official MPD download page](https://www.musicpd.org/download.html).
+## MPD playback backend
 
-## Set up a local MPD backend
+MPD is required for playback but is not a build dependency. If an MPD server is already available locally or remotely, skip the local setup below.
 
-The following setup runs MPD as your own user, so it can read music in your home directory and use your desktop audio session. First, stop the distribution's system-wide MPD service if it was started automatically:
+To connect to a remote server, run termusic with its address:
 
 ```bash
-sudo systemctl disable --now mpd.service mpd.socket 2>/dev/null || true
+./build/termusic --host <MPD_HOST> --port <MPD_PORT>
+```
+
+You can also save the address under **Core → General → Host / Port → Save and reconnect**.
+
+### Install MPD when no backend is available
+
+Ubuntu / Debian:
+
+```bash
+sudo apt update
+sudo apt install mpd mpc
+```
+
+Fedora:
+
+```bash
+sudo dnf install mpd mpc
+```
+
+`mpc` is only used to verify the MPD setup. Other downloads are available from the [official MPD download page](https://www.musicpd.org/download.html).
+
+### Configure a user MPD service
+
+This guide uses the user service and `$HOME/Music`. A system MPD service normally uses `/etc/mpd.conf` and `/var/lib/mpd/music`; stop it first so it does not occupy port 6600:
+
+```bash
+sudo systemctl disable --now mpd.service mpd.socket
+systemctl --user disable --now mpd.socket
 ```
 
 Create the music, playlist, data, and configuration directories:
@@ -61,15 +88,22 @@ sticker_file       "~/.local/share/mpd/sticker.sql"
 bind_to_address "127.0.0.1"
 port            "6600"
 auto_update     "yes"
+
+audio_output {
+    type       "pulse"
+    name       "Desktop audio"
+    mixer_type "software"
+}
 ```
 
-When no `audio_output` is specified, MPD automatically selects an available PipeWire, PulseAudio, or ALSA output. Start MPD now and automatically after future logins:
+The `audio_output` block enables software volume control. Start MPD now and automatically after future logins:
 
 ```bash
 systemctl --user enable --now mpd
+systemctl --user status mpd --no-pager
 ```
 
-If your distribution does not provide the user service, start the daemon directly instead:
+If the user service is unavailable, start MPD directly:
 
 ```bash
 mpd "$HOME/.config/mpd/mpd.conf"
@@ -79,12 +113,17 @@ Copy or move at least one supported audio file into `$HOME/Music`, update the da
 
 ```bash
 cp /path/to/your/song.mp3 "$HOME/Music/"
-mpc update
-mpc status
+mpc update --wait
+mpc stats
 mpc outputs
+mpc volume 50
 ```
 
-`mpc status` should connect without an error, and `mpc outputs` should show at least one enabled output. The local backend is now ready at `127.0.0.1:6600`.
+`mpc stats` should report at least one song and the final command should report `volume: 50%`. If the PulseAudio output is unavailable, replace `type "pulse"` with `type "pipewire"` or `type "alsa"`, then restart MPD. After adding music, run `mpc update --wait` or select **Core → General → Update database**.
+
+### Default playlist
+
+termusic always shows a read-only **Default** playlist at the top of **PlayLists**. It automatically displays every song in the MPD media library and updates after an MPD database scan. **Default** cannot be renamed, deleted, reordered, or used as a paste destination; create another playlist for manual editing.
 
 ## Clone
 
@@ -106,11 +145,7 @@ cmake --build build -j
 ./build/termusic
 ```
 
-termusic connects to `127.0.0.1:6600` by default. To connect to a remote MPD server, run:
-
-```bash
-./build/termusic --host <MPD_HOST> --port <MPD_PORT>
-```
+termusic connects to `127.0.0.1:6600` by default.
 
 ## Install
 

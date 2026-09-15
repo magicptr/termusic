@@ -32,6 +32,17 @@
 int main() {
   using namespace termusic;
 
+  static_assert(isDefaultPlaylistName("Default"));
+  static_assert(!isDefaultPlaylistName("default"));
+  {
+    const auto playlists = playlistsWithDefault(
+        {"Road Trip", "Default", "Night Drive"});
+    assert((playlists ==
+            std::vector<std::string>{"Default", "Road Trip", "Night Drive"}));
+    assert(playlistsWithDefault({}) ==
+           std::vector<std::string>{"Default"});
+  }
+
   // --- vault / core directory model ----------------------------------------
   // Round 55: the tree IS the navigation. Two roots, like a filesystem:
   // `vault` holds the media, `core` holds the configuration files. Neither is
@@ -79,14 +90,12 @@ int main() {
       assert(std::string(entry.label).find(".toml") == std::string::npos);
     }
 
-    // Every playlist gets a row under PlayLists, in MPD's own order -- one
-    // called `default` included, because there is no built-in entry to collide
-    // with and no name the model reserves.
-    tree.setPlaylists({{"default", "default"}, {"Night Drive", "Night Drive"}});
+    // Default is the protected virtual first row; saved playlists follow it.
+    tree.setPlaylists({{"Default", "Default"}, {"Night Drive", "Night Drive"}});
     const auto &with_user = tree.visible();
     assert(with_user[4].type == TreeNodeType::Playlist);
-    assert(with_user[4].label == "default");
-    assert(with_user[4].id == "default");
+    assert(with_user[4].label == "Default");
+    assert(with_user[4].id == "Default");
     assert(with_user[4].depth == 2);
     assert(!with_user[4].expandable && with_user[4].isCollection());
     assert(with_user[5].label == "Night Drive");

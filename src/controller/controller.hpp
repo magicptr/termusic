@@ -51,7 +51,6 @@ public:
 
   void selectPage(Page page);
   void selectPlaylist(int index);
-  /// Selects the built-in `default` saved playlist.
   /// Makes the MPD media database the active Track Buffer source. This is the
   /// single authoritative path for selecting "All Songs"; it resets
   /// `library.current`, which is what `refreshLibrary()` keys off. Without

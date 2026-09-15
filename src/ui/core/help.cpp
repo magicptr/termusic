@@ -107,8 +107,9 @@ protected:
     line("Open a playlist and press l to edit its tracks: K / J moves the");
     line("highlighted song up / down, and d d removes it.");
     line("On a playlist in the tree, r renames it and d d deletes it.");
-    line("Every listed playlist is a real saved playlist you own; none of");
-    line("them is reserved, and MPD's runtime queue is not a collection.");
+    line("Default is always first and automatically shows every song in");
+    line("the MPD library. It is read-only and cannot be renamed/deleted.");
+    line("All playlists below Default are saved playlists you can edit.");
 
     heading_row("Leaving");
     line("q          always quits, from any pane, whatever the config says.");

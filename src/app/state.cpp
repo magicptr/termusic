@@ -9,6 +9,19 @@
 
 namespace termusic {
 
+std::vector<std::string>
+playlistsWithDefault(std::vector<std::string> saved_playlists) {
+  saved_playlists.erase(
+      std::remove_if(saved_playlists.begin(), saved_playlists.end(),
+                     [](const std::string &name) {
+                       return isDefaultPlaylistName(name);
+                     }),
+      saved_playlists.end());
+  saved_playlists.insert(saved_playlists.begin(),
+                         std::string(kDefaultPlaylistName));
+  return saved_playlists;
+}
+
 std::string Song::displayTitle() const {
   if (!title.empty()) {
     return title;
@@ -256,4 +269,3 @@ void loadReferenceSpectrum(VisualizerState &visualizer, std::size_t bands) {
 }
 
 } // namespace termusic
-

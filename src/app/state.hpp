@@ -14,12 +14,17 @@
 
 namespace termusic {
 
-/// Name of the one protected, built-in saved playlist.
-///
-/// It is the single authority for the rule: never scatter `name == "default"`
-/// through renderers and actions. `Library` (the media database) and `default`
-/// (a saved playlist) are deliberately different collections that happen to
-/// start with the same contents.
+/// The protected playlist shown at the top of PlayLists. It is a virtual view
+/// of the MPD media database, not an MPD stored playlist.
+inline constexpr std::string_view kDefaultPlaylistName = "Default";
+
+inline constexpr bool isDefaultPlaylistName(std::string_view name) {
+  return name == kDefaultPlaylistName;
+}
+
+/// Prepends virtual Default and removes a colliding stored name.
+std::vector<std::string>
+playlistsWithDefault(std::vector<std::string> saved_playlists);
 
 /// Top-level sections, in navigation order. There is deliberately NO
 /// `NowPlaying` page: the immersive song display is a *presentation mode*
@@ -217,10 +222,8 @@ double progressRatio(const PlayerState &player,
 
 
 struct LibraryState {
-  /// Every entry is a REAL saved playlist read from MPD, in MPD's own order;
-  /// there is no built-in entry and no reserved name. MPD's runtime queue is
-  /// the backend's playback mechanism -- it is not a collection and is never
-  /// listed here. `current` selects which playlist `songs` was fetched from.
+  /// Index 0 is always the protected virtual Default playlist. The remaining
+  /// entries are saved playlists read from MPD in MPD's order.
   std::vector<std::string> playlists;
   int current = 0;
   std::vector<Song> songs;

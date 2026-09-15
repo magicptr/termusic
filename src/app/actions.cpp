@@ -77,7 +77,7 @@ constexpr auto kActionInfo = std::to_array<ActionInfo>({
     {Action::ClearQueue, "clear_queue", "Clear Default"},
     {Action::MoveQueueItemUp, "move_queue_up", "Move Default item up"},
     {Action::MoveQueueItemDown, "move_queue_down", "Move Default item down"},
-    {Action::LoadPlaylistToQueue, "load_playlist", "Load playlist to Default"},
+    {Action::LoadPlaylistToQueue, "load_playlist", "Load playlist into queue"},
     {Action::AddToPlaylist, "add_to_playlist", "Add to playlist"},
     {Action::NewPlaylist, "new_playlist", "New playlist"},
     {Action::RenamePlaylist, "rename_playlist", "Rename playlist"},
