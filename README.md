@@ -1,6 +1,6 @@
 # termusic
 
-termusic is a lightweight, keyboard-driven terminal music client for MPD (Music Player Daemon). It lets you browse your music library, control playback, search for tracks, manage playlists, switch themes, view playback history, load plugins, and display a spectrum visualizer. It can connect to an MPD server running locally or remotely.
+termusic is a keyboard-driven terminal client for MPD (Music Player Daemon). The MPD server can run locally or remotely.
 
 ## Demo
 
@@ -48,16 +48,16 @@ Ubuntu / Debian:
 
 ```bash
 sudo apt update
-sudo apt install mpd mpc
+sudo apt install mpd
 ```
 
 Fedora:
 
 ```bash
-sudo dnf install mpd mpc
+sudo dnf install mpd
 ```
 
-`mpc` is only used to verify the MPD setup. Other downloads are available from the [official MPD download page](https://www.musicpd.org/download.html).
+Other downloads are available from the [official MPD download page](https://www.musicpd.org/download.html).
 
 ### Configure a user MPD service
 
@@ -96,12 +96,24 @@ audio_output {
 }
 ```
 
-The `audio_output` block enables software volume control. Start MPD now and automatically after future logins:
+The `audio_output` block selects desktop audio and enables volume control from termusic. If a track is playing but there is no sound or its volume stays at zero, keep `mixer_type "software"`. The configured `pulse` output works with PulseAudio and PipeWire systems that provide `pipewire-pulse`; otherwise change only `type` to `pipewire` or `alsa`.
+
+### Start MPD
+
+Start MPD now and automatically after future logins:
 
 ```bash
 systemctl --user enable --now mpd
 systemctl --user status mpd --no-pager
 ```
+
+After changing `$HOME/.config/mpd/mpd.conf`, restart MPD:
+
+```bash
+systemctl --user restart mpd
+```
+
+Reconnect termusic, open the Now Playing view with `i`, and press `k` to raise the volume.
 
 If the user service is unavailable, start MPD directly:
 
@@ -109,21 +121,17 @@ If the user service is unavailable, start MPD directly:
 mpd "$HOME/.config/mpd/mpd.conf"
 ```
 
-Copy or move at least one supported audio file into `$HOME/Music`, update the database, and verify the backend:
+Copy or move at least one supported audio file into `$HOME/Music`:
 
 ```bash
 cp /path/to/your/song.mp3 "$HOME/Music/"
-mpc update --wait
-mpc stats
-mpc outputs
-mpc volume 50
 ```
 
-`mpc stats` should report at least one song and the final command should report `volume: 50%`. If the PulseAudio output is unavailable, replace `type "pulse"` with `type "pipewire"` or `type "alsa"`, then restart MPD. After adding music, run `mpc update --wait` or select **Core → General → Update database**.
+Start termusic, then select **Core → General → Update database**. When the update finishes, the songs will appear in **Library** and **Default**.
 
 ### Default playlist
 
-termusic always shows a read-only **Default** playlist at the top of **PlayLists**. It automatically displays every song in the MPD media library and updates after an MPD database scan. **Default** cannot be renamed, deleted, reordered, or used as a paste destination; create another playlist for manual editing.
+**Default** lists all songs in the MPD media library and is read-only. Create another playlist when you need to add, remove, or reorder songs.
 
 ## Clone
 
