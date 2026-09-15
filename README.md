@@ -1,6 +1,8 @@
 # termusic
 
-termusic is a keyboard-driven terminal client for MPD (Music Player Daemon). The MPD server can run locally or remotely.
+Termusic is a lightweight, keyboard-driven terminal music player focused on local music playback. It uses Vim-style keyboard shortcuts for efficient music selection and playback.It is designed for Linux users, terminal enthusiasts, Vim users, and anyone who wants a
+fast, distraction-free way to manage and play a local music library without leaving the command line.
+
 
 ## Demo
 
