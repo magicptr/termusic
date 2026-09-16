@@ -35,6 +35,34 @@ struct Cell {
   int priority = 0;
 };
 
+/// Disc mode deliberately owns a fixed pixel-art palette. It reproduces the
+/// supplied black/graphite/red/white reference and is independent of the UI
+/// theme; Spectrum and every other view continue to use Theme normally.
+struct DiscColors {
+  Color vinyl = Color::RGB(0x13, 0x12, 0x14);
+  Color edge_dark = Color::RGB(0x19, 0x1B, 0x23);
+  Color shadow_blue = Color::RGB(0x1E, 0x21, 0x26);
+  Color shadow_teal = Color::RGB(0x1F, 0x20, 0x1C);
+  Color shadow_brown = Color::RGB(0x24, 0x1A, 0x17);
+  Color groove_dark = Color::RGB(0x2D, 0x2D, 0x2D);
+  Color groove_cool = Color::RGB(0x3A, 0x3C, 0x42);
+  Color groove_low = Color::RGB(0x3D, 0x41, 0x44);
+  Color groove_warm = Color::RGB(0x46, 0x43, 0x3D);
+  Color groove_mid = Color::RGB(0x4D, 0x4D, 0x4E);
+  Color groove_high = Color::RGB(0x61, 0x5F, 0x5D);
+  Color groove_shine = Color::RGB(0x66, 0x67, 0x69);
+  Color label = Color::RGB(0xCC, 0x33, 0x26);
+  Color label_shadow = Color::RGB(0xAD, 0x2C, 0x22);
+  Color spindle = Color::RGB(0x07, 0x07, 0x0F);
+  Color arm = Color::RGB(0xB2, 0xB1, 0xC1);
+  Color arm_dim = Color::RGB(0x74, 0x74, 0x80);
+};
+
+const DiscColors &discColors() {
+  static const DiscColors colors;
+  return colors;
+}
+
 double wrapPhase(double phase) {
   phase = std::fmod(phase, kTwoPi);
   return phase < 0.0 ? phase + kTwoPi : phase;
@@ -250,6 +278,7 @@ void DiscRenderer::update(const DiscFrame &frame) {
 
 Element DiscRenderer::render(const DiscFrame &frame) {
   Impl &s = *impl_;
+  const DiscColors &colors = discColors();
   if (frame.columns != s.columns || frame.rows != s.rows)
     s.rebuild(frame.columns, frame.rows);
   std::fill(s.cells.begin(), s.cells.end(), Cell{});
@@ -265,63 +294,85 @@ Element DiscRenderer::render(const DiscFrame &frame) {
       // The vinyl is a filled object distinct from the terminal background.
       // `panel` stays dark in every theme but does not disappear into empty
       // space the way `background_deep` did.
-      s.setCell(x, y, "█", frame.theme.panel, 1);
+      s.setCell(x, y, "█", colors.vinyl, 1);
       // The reference has one restrained dark rim, not a bright outline.
       if (r > 0.985) {
         const double rim_light = std::fabs(std::sin(s.polar_angle[at]));
-        const Color rim_color = rim_light > 0.84
-                                    ? frame.theme.border
-                                : rim_light > 0.52 ? frame.theme.surface
-                                                   : frame.theme.background_deep;
+        const Color rim_color = rim_light > 0.90
+                                    ? colors.groove_high
+                                : rim_light > 0.68 ? colors.groove_mid
+                                : rim_light > 0.38 ? colors.groove_low
+                                                   : colors.shadow_blue;
         s.setCell(x, y, discBlock(s.polar_angle[at]), rim_color, 5);
       }
 
       if (r >= 0.27 && r <= 0.94) {
         const double ring = (r - 0.27) / 0.67 * groove_count;
         const int ring_index = static_cast<int>(std::floor(ring));
-        const double within = ring - std::floor(ring);
-        // Broad, separated grey bands match the compact pixel reference much
-        // better than many independent dashes. Dark gaps keep each concentric
-        // groove legible even when the terminal palette has low contrast.
-        {
-          const double vertical = std::fabs(std::sin(s.polar_angle[at]));
-          Color groove_color = frame.theme.background_deep;
-          if (within >= 0.12) {
-            if (vertical > 0.88)
-              groove_color = ring_index % 2 == 0 ? frame.theme.weak_text
-                                                  : frame.theme.border;
-            else if (vertical > 0.62)
-              groove_color = frame.theme.border;
-            else if (vertical > 0.34)
-              groove_color = frame.theme.surface;
-            else
-              groove_color = frame.theme.border_dim;
-          }
-          // Rotation is deliberately subtle: it only promotes a short piece
-          // by one nearby grey role, preserving the reference's lighting.
-          const double moving = std::fabs(std::remainder(
-              s.polar_angle[at] - s.phase * 0.72 + ring_index * 0.51,
-              kTwoPi));
-          if (within >= 0.12 && moving < 0.16 && vertical > 0.34 &&
-              vertical <= 0.62)
-            groove_color = frame.theme.border;
-          s.setCell(x, y, discBlock(s.polar_angle[at]), groove_color, 4);
-        }
+        // One continuous filled vinyl surface. Adjacent grooves are separated
+        // only by a restrained grey-step difference -- never by black gaps or
+        // transparent half-cells -- so the record reads as one solid object.
+        const bool brighter_ring = ring_index % 2 == 0;
+        const double vertical = std::fabs(std::sin(s.polar_angle[at]));
+        const int sector = static_cast<int>(std::floor(
+            (s.polar_angle[at] + std::numbers::pi) * 8.0 /
+            std::numbers::pi));
+        const int tone = (sector + ring_index * 2) % 3;
+        Color groove_color = brighter_ring ? colors.shadow_blue
+                                            : colors.shadow_teal;
+        if (vertical > 0.94)
+          groove_color = brighter_ring ? colors.groove_shine
+                                        : colors.groove_high;
+        else if (vertical > 0.78)
+          groove_color = tone == 0   ? colors.groove_high
+                         : tone == 1 ? colors.groove_cool
+                                     : colors.groove_warm;
+        else if (vertical > 0.56)
+          groove_color = tone == 0   ? colors.groove_mid
+                         : tone == 1 ? colors.groove_low
+                                     : colors.groove_warm;
+        else if (vertical > 0.30)
+          groove_color = tone == 0   ? colors.groove_low
+                         : tone == 1 ? colors.shadow_blue
+                                     : colors.shadow_brown;
+        else
+          groove_color = tone == 0   ? colors.shadow_blue
+                         : tone == 1 ? colors.shadow_teal
+                                     : colors.shadow_brown;
+
+        // Rotation promotes only a small part by one adjacent grey level.
+        const double moving = std::fabs(std::remainder(
+            s.polar_angle[at] - s.phase * 0.72 + ring_index * 0.51,
+            kTwoPi));
+        if (moving < 0.16 && vertical > 0.34 && vertical <= 0.62)
+          groove_color = brighter_ring ? colors.groove_mid
+                                        : colors.groove_low;
+        s.setCell(x, y, "█", groove_color, 4);
       }
 
-      // Circular theme label, using the same physical radius correction as
-      // the vinyl. A half-block boundary softens its top and bottom pixels.
-      if (r <= 0.27)
-        s.setCell(x, y, "█", frame.theme.accent_primary, 6);
-      else if (r <= 0.30)
+      // Circular fixed-red label, using the same physical radius correction
+      // as the vinyl. It overlays the filled grooves directly, without a dark
+      // separator, so the two pieces remain visibly fitted together.
+      if (r <= 0.30) {
+        const double label_dx =
+            (x - s.center_x) * kDiscCellAspect /
+            static_cast<double>(std::max(1, s.radius));
+        const double label_dy = (y - s.center_y) /
+                                static_cast<double>(std::max(1, s.radius));
+        const Color label_color = label_dx > 0.10 || label_dy > 0.17
+                                      ? colors.label_shadow
+                                      : colors.label;
+        s.setCell(x, y, "█", label_color, 6);
+      } else if (r <= 0.34)
         s.setCell(x, y, discBlock(s.polar_angle[at]),
-                  frame.theme.accent_primary, 6);
+                  colors.label_shadow, 6);
     }
   }
 
   // The reference label is completely clean: one dark spindle and no second
   // marker that could be mistaken for a missing pixel.
-  s.setCell(s.center_x, s.center_y, "█", frame.theme.background_deep, 8);
+  s.setCell(s.center_x - 1, s.center_y, "█", colors.spindle, 8);
+  s.setCell(s.center_x, s.center_y, "█", colors.spindle, 8);
 
   const double needle_px = s.pivot_px + s.arm_length * std::cos(s.arm_angle);
   const double needle_py = s.pivot_py + s.arm_length * std::sin(s.arm_angle);
@@ -341,21 +392,22 @@ Element DiscRenderer::render(const DiscFrame &frame) {
   const int rest_y = static_cast<int>(std::lround(parked_py));
   // Two-step bright pivot, matching the reference's small white block shape.
   if (!compact) {
-    s.setCell(s.pivot_x, s.pivot_y, "█", frame.theme.text, 12);
-    s.setCell(s.pivot_x + 1, s.pivot_y, "█", frame.theme.text, 12);
-    s.setCell(s.pivot_x + 1, s.pivot_y - 1, "█", frame.theme.text, 12);
+    s.setCell(s.pivot_x, s.pivot_y, "█", colors.arm, 12);
+    s.setCell(s.pivot_x + 1, s.pivot_y, "█", colors.arm, 12);
+    s.setCell(s.pivot_x + 2, s.pivot_y - 1, "█", colors.arm, 12);
+    s.setCell(s.pivot_x + 3, s.pivot_y - 1, "█", colors.arm, 12);
   }
   // One compact half-block tube: solid enough to read, but no longer a large
   // diagonal bar competing with the record.
   s.blockLine(s.pivot_x, s.pivot_y, needle_x, needle_y,
-              frame.theme.border_dim,
+              colors.arm_dim,
               "▄", 10);
 
   // No visible counterweight: it was the source of the fragmented shape in
   // the previous render and is absent from the supplied pixel reference.
   int counter_x = s.pivot_x;
   int counter_y = s.pivot_y;
-  s.setCell(s.pivot_x, s.pivot_y, "█", frame.theme.text, 14);
+  s.setCell(s.pivot_x, s.pivot_y, "█", colors.arm, 14);
 
   // Headshell is a connected final segment aligned with the tube. The
   // cartridge hangs from it, while the bright stylus dot is the exact point
@@ -366,14 +418,14 @@ Element DiscRenderer::render(const DiscFrame &frame) {
   const int shell_y =
       static_cast<int>(std::lround(needle_py - uy * shell_length));
   s.blockLine(shell_x, shell_y, needle_x, needle_y,
-              frame.theme.surface, "▄", 13);
+              colors.arm_dim, "▄", 13);
   const int cartridge_x = static_cast<int>(std::lround(
       (needle_px - ux * 0.035 * s.radius - uy * 0.055 * s.radius) /
       kDiscCellAspect));
   const int cartridge_y = static_cast<int>(std::lround(
       needle_py - uy * 0.035 * s.radius + ux * 0.055 * s.radius));
-  s.setCell(cartridge_x, cartridge_y, "▄", frame.theme.border, 14);
-  s.setCell(needle_x, needle_y, "▄", frame.theme.border, 15);
+  s.setCell(cartridge_x, cartridge_y, "▄", colors.arm, 14);
+  s.setCell(needle_x, needle_y, "▄", colors.arm, 15);
 
   const double disc_dx = needle_px -
                          static_cast<double>(s.center_x) * kDiscCellAspect;
@@ -415,7 +467,8 @@ Element DiscRenderer::render(const DiscFrame &frame) {
   s.stats.arm_settled =
       std::fabs(angleDistance(s.arm_angle, s.target_angle)) <= 0.006;
   s.stats.geometry_fits = s.stats.left >= 0 && s.stats.right < s.columns &&
-                          s.pivot_x >= 0 && s.pivot_x < s.columns &&
+                          s.pivot_x >= 0 && s.pivot_x + 3 < s.columns &&
+                          (compact || s.pivot_y - 1 >= 0) &&
                           needle_x >= 0 && needle_x < s.columns &&
                           needle_y >= 0 && needle_y < s.rows &&
                           (compact ||

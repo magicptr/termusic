@@ -125,24 +125,57 @@ int main() {
          "the complete stopped arm must clear the record, not only its stylus");
   assert(disc.stats().arm_settled && !disc.animationActive());
 
-  // The label reads its colour from the live Theme on every render.
+  // The supplied reference owns the Disc palette: changing the application
+  // theme must not recolour the vinyl, label or tonearm.
+  auto baseline_frame =
+      frame(width, height, dt, PlaybackState::Stopped, 0.0, theme);
+  ftxui::Screen baseline_screen(width, height);
+  ftxui::Render(baseline_screen, disc.render(baseline_frame));
   Theme alternate = theme;
   alternate.accent_primary = ftxui::Color::RGB(20, 210, 90);
+  alternate.panel = ftxui::Color::RGB(230, 210, 30);
+  alternate.text = ftxui::Color::RGB(30, 220, 230);
   auto themed = frame(width, height, dt, PlaybackState::Stopped, 0.0, alternate);
   ftxui::Screen screen(width, height);
   ftxui::Render(screen, disc.render(themed));
+  for (int y = 0; y < height; ++y)
+    for (int x = 0; x < width; ++x)
+      assert(screen.CellAt(x, y).foreground_color ==
+             baseline_screen.CellAt(x, y).foreground_color);
+
   bool found_label_colour = false;
   int label_left = width;
   int label_right = 0;
   int label_top = height;
   int label_bottom = 0;
   const auto geometry = disc.stats();
+  for (int y = 0; y < height; ++y) {
+    for (int x = 0; x < width; ++x) {
+      const double dx = (x - geometry.center_x) * kDiscCellAspect;
+      const double dy = y - geometry.center_y;
+      const double radius = std::hypot(dx, dy) /
+                            static_cast<double>(geometry.radius_rows);
+      if (radius <= 0.90)
+        assert(screen.CellAt(x, y).character != " " &&
+               "the vinyl interior must be continuously filled");
+    }
+  }
+  const int label_probe = std::max(
+      1, static_cast<int>(std::lround(geometry.radius_rows * 0.15 /
+                                     kDiscCellAspect)));
+  const ftxui::Color label_main =
+      screen.CellAt(geometry.center_x - label_probe, geometry.center_y)
+          .foreground_color;
+  const ftxui::Color label_shadow =
+      screen.CellAt(geometry.center_x + label_probe, geometry.center_y)
+          .foreground_color;
   for (int y = geometry.center_y - geometry.radius_rows / 3;
        y <= geometry.center_y + geometry.radius_rows / 3; ++y) {
     for (int x = geometry.center_x - geometry.radius_rows;
          x <= geometry.center_x + geometry.radius_rows; ++x) {
       if (x >= 0 && x < width && y >= 0 && y < height &&
-          screen.CellAt(x, y).foreground_color == alternate.accent_primary) {
+          (screen.CellAt(x, y).foreground_color == label_main ||
+           screen.CellAt(x, y).foreground_color == label_shadow)) {
         found_label_colour = true;
         label_left = std::min(label_left, x);
         label_right = std::max(label_right, x);
