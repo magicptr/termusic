@@ -24,11 +24,13 @@ constexpr const char *kNerdFolder = "\uf07b";     // fa-folder
 constexpr const char *kNerdFolderOpen = "\uf07c"; // fa-folder-open
 constexpr const char *kNerdMusic = "\uf001";      // fa-music
 constexpr const char *kNerdHistory = "\uf1da";    // fa-history
+constexpr const char *kNerdStream = "\uf1eb";     // fa-wifi
+constexpr const char *kNerdAgent = "\uf0d0";      // fa-magic
 constexpr const char *kNerdPlaylist = "\uf0ca";   // fa-list-ul
 // The two `core` entry kinds. Same family again: a text page and a cog, so the
 // classification reads as "information" versus "configurable".
-constexpr const char *kNerdDocument = "\uf15c";   // fa-file-text-o
-constexpr const char *kNerdSettings = "\uf013";   // fa-cog
+constexpr const char *kNerdDocument = "\uf15c"; // fa-file-text-o
+constexpr const char *kNerdSettings = "\uf013"; // fa-cog
 
 // Geometric fallback, only used when the terminal has no Nerd Font. Kept as
 // close to one weight as the base Unicode blocks allow.
@@ -42,16 +44,20 @@ constexpr const char *kUniSpeaker = "\u25b6\u25cf";
 // Width-safe Unicode fallbacks. Deliberately NOT emoji: an emoji's width and
 // baseline vary between terminals, which would break the columns an icon sits
 // in front of.
-constexpr const char *kUniFolder = "\u25a3";     // white square containing black small square
-constexpr const char *kUniFolderOpen = "\u25a2"; // white square with rounded corners
-constexpr const char *kUniMusic = "\u266a";      // quaver
-constexpr const char *kUniHistory = "\u21ba";    // anticlockwise arrow
-constexpr const char *kUniPlaylist = "\u2261";   // identical to (a list)
+constexpr const char *kUniFolder =
+    "\u25a3"; // white square containing black small square
+constexpr const char *kUniFolderOpen =
+    "\u25a2";                               // white square with rounded corners
+constexpr const char *kUniMusic = "\u266a"; // quaver
+constexpr const char *kUniHistory = "\u21ba";  // anticlockwise arrow
+constexpr const char *kUniStream = "\u223f";   // sine wave
+constexpr const char *kUniAgent = "\u2726";    // four pointed star
+constexpr const char *kUniPlaylist = "\u2261"; // identical to (a list)
 // Width-safe stand-ins: a ruled page and a heavy asterisk. Deliberately NOT
 // the gear/emoji codepoints (U+2699 and friends), whose width and presentation
 // vary between terminals and would move the column they sit in.
-constexpr const char *kUniDocument = "\u25a4";   // square with horizontal fill
-constexpr const char *kUniSettings = "\u2731";   // heavy asterisk
+constexpr const char *kUniDocument = "\u25a4"; // square with horizontal fill
+constexpr const char *kUniSettings = "\u2731"; // heavy asterisk
 
 } // namespace
 
@@ -90,6 +96,10 @@ std::string iconGlyph(Icon icon, IconSet set) {
     return nerd ? kNerdMusic : kUniMusic;
   case Icon::History:
     return nerd ? kNerdHistory : kUniHistory;
+  case Icon::Stream:
+    return nerd ? kNerdStream : kUniStream;
+  case Icon::Agent:
+    return nerd ? kNerdAgent : kUniAgent;
   case Icon::Playlist:
     return nerd ? kNerdPlaylist : kUniPlaylist;
   case Icon::Music:
@@ -108,6 +118,8 @@ bool isContentIcon(Icon icon) {
   case Icon::FolderOpen:
   case Icon::Library:
   case Icon::History:
+  case Icon::Stream:
+  case Icon::Agent:
   case Icon::Playlist:
   case Icon::Music:
   case Icon::Document:
@@ -148,9 +160,9 @@ ftxui::Element transportButton(Icon icon, IconSet set, const Theme &theme,
   //   normal  -> Subtext1         hover     -> Text
   //   toggled on -> Mauve         toggled off -> Overlay1 (dimmer)
   const ftxui::Color tint = highlighted ? theme.accent_primary
-                             : hovered   ? theme.text
-                             : toggle    ? theme.weak_text
-                                         : theme.icon;
+                            : hovered   ? theme.text
+                            : toggle    ? theme.weak_text
+                                        : theme.icon;
   (void)focused;
   const int width = std::max(1, box_width);
   const int height = std::max(1, box_height);
@@ -186,9 +198,9 @@ SliderGeometry SliderGeometry::fromProgress(int track_cells, double progress) {
   geometry.progress = std::clamp(progress, 0.0, 1.0);
   geometry.exact_position =
       geometry.progress * static_cast<double>(geometry.track_cells - 1);
-  geometry.thumb_cell = std::clamp(
-      static_cast<int>(std::lround(geometry.exact_position)), 0,
-      geometry.track_cells - 1);
+  geometry.thumb_cell =
+      std::clamp(static_cast<int>(std::lround(geometry.exact_position)), 0,
+                 geometry.track_cells - 1);
   geometry.full_cells = geometry.thumb_cell;
   geometry.fraction =
       geometry.exact_position - std::floor(geometry.exact_position);
@@ -266,8 +278,7 @@ ftxui::Element halfBlockSlider(double ratio, int width, const Theme &theme) {
                     ftxui::color(theme.progress_filled));
       break;
     case SliderCellKind::Empty:
-      out.push_back(ftxui::text("\u2584") |
-                    ftxui::color(theme.progress_empty));
+      out.push_back(ftxui::text("\u2584") | ftxui::color(theme.progress_empty));
       break;
     }
   }
@@ -281,10 +292,10 @@ ftxui::Element backgroundSlider(double ratio, int width, const Theme &theme) {
   out.reserve(static_cast<std::size_t>(cells));
   for (const SliderCellKind kind : sliderCells(geometry)) {
     const bool played = kind != SliderCellKind::Empty;
-    out.push_back(ftxui::text(kind == SliderCellKind::Thumb ? "\u25cf" : " ") |
-                  ftxui::color(theme.progress_knob) |
-                  ftxui::bgcolor(played ? theme.progress_filled
-                                        : theme.progress_empty));
+    out.push_back(
+        ftxui::text(kind == SliderCellKind::Thumb ? "\u25cf" : " ") |
+        ftxui::color(theme.progress_knob) |
+        ftxui::bgcolor(played ? theme.progress_filled : theme.progress_empty));
   }
   return ftxui::hbox(std::move(out));
 }
@@ -306,7 +317,6 @@ ftxui::Element brailleSlider(double ratio, int width, const Theme &theme) {
 }
 
 } // namespace
-
 
 namespace {
 constexpr int kBrailleBit[2][4] = {
@@ -340,7 +350,8 @@ ftxui::Element brailleTrack(const SliderGeometry &geometry, const Theme &theme,
   for (int cell = 0; cell < cells; ++cell) {
     if (kinds[static_cast<std::size_t>(cell)] == SliderCellKind::Thumb) {
       const double x = static_cast<double>(cell) * 2.0 + 1.0;
-      const double y = kBaseline + amplitude * std::sin(x * kTwoPi / wavelength);
+      const double y =
+          kBaseline + amplitude * std::sin(x * kTwoPi / wavelength);
       const int row = std::clamp(static_cast<int>(std::lround(y)), 0, 3);
       int mask = kBrailleBit[0][row] | kBrailleBit[1][row];
       const int lower = std::min(3, row + 1);
@@ -365,9 +376,9 @@ ftxui::Element brailleTrack(const SliderGeometry &geometry, const Theme &theme,
     }
     const bool played =
         kinds[static_cast<std::size_t>(cell)] == SliderCellKind::Filled;
-    out.push_back(ftxui::text(brailleGlyph(mask)) |
-                  ftxui::color(played ? theme.progress_filled
-                                      : theme.progress_empty));
+    out.push_back(
+        ftxui::text(brailleGlyph(mask)) |
+        ftxui::color(played ? theme.progress_filled : theme.progress_empty));
   }
   (void)columns;
   return ftxui::hbox(std::move(out));
@@ -402,13 +413,12 @@ ftxui::Element geometricSpeaker(const Theme &theme) {
   waves.push_back(ftxui::text("\u2590") | ftxui::color(theme.icon));
   waves.push_back(ftxui::text("\u2590") | ftxui::color(theme.icon));
   return ftxui::hbox({
-      ftxui::vbox({ftxui::text(" "), ftxui::hbox(std::move(body)),
-                   ftxui::text(" ")}),
-      ftxui::vbox({ftxui::text("\u2584"), ftxui::text(" "),
-                   ftxui::text("\u2580")}) |
+      ftxui::vbox(
+          {ftxui::text(" "), ftxui::hbox(std::move(body)), ftxui::text(" ")}),
+      ftxui::vbox(
+          {ftxui::text("\u2584"), ftxui::text(" "), ftxui::text("\u2580")}) |
           ftxui::color(theme.icon),
-      ftxui::vbox({ftxui::text(" "), ftxui::text("\u2590"),
-                   ftxui::text(" ")}) |
+      ftxui::vbox({ftxui::text(" "), ftxui::text("\u2590"), ftxui::text(" ")}) |
           ftxui::color(theme.icon),
   });
 }

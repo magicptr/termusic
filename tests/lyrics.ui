@@ -1,0 +1,7 @@
+size 100x30
+load
+key L
+expect Lyrics
+expect Music library path is unavailable
+key Esc
+expect-absent Music library path is unavailable

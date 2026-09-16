@@ -1,9 +1,9 @@
 #include <algorithm>
 #include <cassert>
-#include <cstdlib>
 #include <chrono>
 #include <cmath>
 #include <cstdint>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <numbers>
@@ -12,14 +12,14 @@
 
 #include <iostream>
 
-#include "app/history.hpp"
-#include "app/reconnect.hpp"
-#include "app/playback.hpp"
-#include "app/keymap.hpp"
-#include "app/interaction.hpp"
-#include "app/workspace_tree.hpp"
-#include "app/state.hpp"
 #include "app/diagnostics.hpp"
+#include "app/history.hpp"
+#include "app/interaction.hpp"
+#include "app/keymap.hpp"
+#include "app/playback.hpp"
+#include "app/reconnect.hpp"
+#include "app/state.hpp"
+#include "app/workspace_tree.hpp"
 #include "config/config.hpp"
 #include "config/paths.hpp"
 #include "extensions/extension_registry.hpp"
@@ -35,18 +35,14 @@ int main() {
   static_assert(isDefaultPlaylistName("Default"));
   static_assert(!isDefaultPlaylistName("default"));
   {
-    const auto playlists = playlistsWithDefault(
-        {"Road Trip", "Default", "Night Drive"});
+    const auto playlists =
+        playlistsWithDefault({"Road Trip", "Default", "Night Drive"});
     assert((playlists ==
             std::vector<std::string>{"Default", "Road Trip", "Night Drive"}));
-    assert(playlistsWithDefault({}) ==
-           std::vector<std::string>{"Default"});
+    assert(playlistsWithDefault({}) == std::vector<std::string>{"Default"});
   }
 
-  // --- vault / core directory model ----------------------------------------
-  // Round 55: the tree IS the navigation. Two roots, like a filesystem:
-  // `vault` holds the media, `core` holds the configuration files. Neither is
-  // a page tab, and MPD's own queue is never a browsable collection.
+  // --- vault / agent / core workspace model --------------------------------
   {
     WorkspaceTree tree;
     const auto &nodes = tree.visible();
@@ -56,7 +52,7 @@ int main() {
     assert(nodes[0].depth == 0);
     assert(nodes[0].expandable && nodes[0].expanded);
 
-    // vault's children: Library, History, PlayLists (all one level in).
+    // vault's children: Library, History, Streams, PlayLists.
     assert(nodes[1].type == TreeNodeType::Database);
     assert(nodes[1].label == "Library");
     assert(nodes[1].depth == 1);
@@ -64,19 +60,27 @@ int main() {
     assert(nodes[2].type == TreeNodeType::History);
     assert(nodes[2].label == "History");
     assert(nodes[2].depth == 1);
-    assert(nodes[3].type == TreeNodeType::Group);
-    assert(nodes[3].label == "PlayLists");
+    assert(nodes[3].type == TreeNodeType::Streams);
+    assert(nodes[3].label == "Streams");
     assert(nodes[3].depth == 1);
-    assert(nodes[3].expandable);
+    assert(tree.streamsIndex() == 3);
+    assert(nodes[4].type == TreeNodeType::Group);
+    assert(nodes[4].label == "PlayLists");
+    assert(nodes[4].depth == 1);
+    assert(nodes[4].expandable);
 
     // No playlists are set yet, so PlayLists has NO child of its own: the tree
     // goes straight from the folder to `Core`. MPD's runtime queue is a
     // playback mechanism, not a collection, and never gets a row here.
-    assert(nodes.size() == 5);
+    assert(nodes.size() == 7);
 
     // Index lookups follow the model, not any display string.
     assert(tree.databaseIndex() == 1);
     assert(tree.historyIndex() == 2);
+    assert(tree.agentIndex() == 5);
+    assert(nodes[5].type == TreeNodeType::Agent);
+    assert(nodes[5].label == "Agent");
+    assert(nodes[5].depth == 0);
 
     // core is the second root, collapsed by default, holding config FILES.
     const int core_index = static_cast<int>(nodes.size()) - 1;
@@ -93,24 +97,26 @@ int main() {
     // Default is the protected virtual first row; saved playlists follow it.
     tree.setPlaylists({{"Default", "Default"}, {"Night Drive", "Night Drive"}});
     const auto &with_user = tree.visible();
-    assert(with_user[4].type == TreeNodeType::Playlist);
-    assert(with_user[4].label == "Default");
-    assert(with_user[4].id == "Default");
-    assert(with_user[4].depth == 2);
-    assert(!with_user[4].expandable && with_user[4].isCollection());
-    assert(with_user[5].label == "Night Drive");
+    assert(with_user[5].type == TreeNodeType::Playlist);
+    assert(with_user[5].label == "Default");
+    assert(with_user[5].id == "Default");
     assert(with_user[5].depth == 2);
+    assert(!with_user[5].expandable && with_user[5].isCollection());
+    assert(with_user[6].label == "Night Drive");
+    assert(with_user[6].depth == 2);
 
     // Collapsing PlayLists hides only the playlists.
-    tree.setCursor(3);
+    tree.setCursor(4);
     assert(tree.collapse());
     {
       const auto &collapsed = tree.visible();
       assert(collapsed[0].label == "Vault");
       assert(collapsed[1].label == "Library");
       assert(collapsed[2].label == "History");
-      assert(collapsed[3].label == "PlayLists");
-      assert(collapsed.size() == 5);
+      assert(collapsed[3].label == "Streams");
+      assert(collapsed[4].label == "PlayLists");
+      assert(collapsed[5].label == "Agent");
+      assert(collapsed.size() == 7);
       assert(tree.databaseIndex() == 1);
       assert(tree.historyIndex() == 2);
     }
@@ -186,8 +192,8 @@ int main() {
     for (int i = 0; i < 101; ++i)
       history.record(song("X" + std::to_string(i)));
     assert(history.size() == 100);
-    assert(history.entries().front().uri == "X1");   // X0 evicted
-    assert(history.entries().back().uri == "X100");  // newest kept
+    assert(history.entries().front().uri == "X1");  // X0 evicted
+    assert(history.entries().back().uri == "X100"); // newest kept
     assert(history.songsNewestFirst().front().uri == "X100");
 
     // Persistence: the same entries come back, in the same order.
@@ -429,7 +435,8 @@ int main() {
     // --- The Library / default test (spec §15) ------------------------------
     const auto library = make({"A", "B", "C"});
     const auto default_list = make({"A", "B", "C"});
-    const PlaybackCollection library_ctx = kind(PlaybackCollection::Kind::Library);
+    const PlaybackCollection library_ctx =
+        kind(PlaybackCollection::Kind::Library);
     const PlaybackCollection default_ctx =
         kind(PlaybackCollection::Kind::Playlist, "default");
 
@@ -454,9 +461,10 @@ int main() {
     const PlaybackCollection rock_ctx =
         kind(PlaybackCollection::Kind::Playlist, "Rock");
     assert(playingRowIn(rock_ctx, rock_ctx, rock, playing_b, false) == 1);
-    assert(playingRowIn(library_ctx, rock_ctx, library, playing_b, false) == -1);
-    assert(playingRowIn(default_ctx, rock_ctx, default_list, playing_b, false) ==
+    assert(playingRowIn(library_ctx, rock_ctx, library, playing_b, false) ==
            -1);
+    assert(playingRowIn(default_ctx, rock_ctx, default_list, playing_b,
+                        false) == -1);
 
     // Browsing Rock while Library owns playback stays unmarked, and vice versa:
     // the displayed list has to be the owner.
@@ -472,10 +480,24 @@ int main() {
     assert(playingRowIn(default_ctx, default_ctx, abac, first_a, false) == 0);
 
     // Previous/Next inside that list are the neighbours of the SECOND A.
-    const int at = playingRowIn(default_ctx, default_ctx, abac, second_a, false);
+    const int at =
+        playingRowIn(default_ctx, default_ctx, abac, second_a, false);
     assert(at == 2);
     assert(abac[static_cast<std::size_t>(at) - 1U].uri == "B");
     assert(abac[static_cast<std::size_t>(at) + 1U].uri == "C");
+
+    // Provider identity survives a freshly resolved playback URL. Signed
+    // URLs may differ between the displayed Agent result and MPD's queue.
+    Song provider_row = song("provider:subsonic:song-1");
+    provider_row.source_id = "subsonic";
+    provider_row.source_track_id = "song-1";
+    Song resolved_row = song("https://music.example/stream?token=fresh");
+    resolved_row.source_id = "subsonic";
+    resolved_row.source_track_id = "song-1";
+    const std::vector<Song> provider_rows = {provider_row};
+    assert(playingRowIn(kind(PlaybackCollection::Kind::Agent),
+                        kind(PlaybackCollection::Kind::Agent), provider_rows,
+                        resolved_row, false) == 0);
 
     // --- History is occurrence-keyed, not URI-keyed (spec §16, §21, §33) ----
     const PlaybackCollection history_ctx =
@@ -542,13 +564,12 @@ int main() {
   // round(progress * (cells - 1)).
   {
     using termusic::ui::SliderCellKind;
-    using termusic::ui::SliderGeometry;
     using termusic::ui::sliderCells;
+    using termusic::ui::SliderGeometry;
 
-    const std::vector<double> probes = {0.0,  0.001, 0.005, 0.01, 0.02,
-                                        0.05, 0.1,   0.25, 0.5,  0.75,
-                                        0.9,  0.95,  0.96, 0.97, 0.98,
-                                        0.99, 0.995, 0.999, 1.0};
+    const std::vector<double> probes = {
+        0.0, 0.001, 0.005, 0.01, 0.02, 0.05, 0.1,   0.25,  0.5, 0.75,
+        0.9, 0.95,  0.96,  0.97, 0.98, 0.99, 0.995, 0.999, 1.0};
     const std::vector<int> widths = {1, 2, 3, 10, 30, 100};
 
     for (const int cells : widths) {
@@ -588,8 +609,8 @@ int main() {
         const double back = SliderGeometry::progressFromPosition(
             cells, static_cast<double>(geometry.thumb_cell));
         assert(back >= 0.0 && back <= 1.0);
-        const int round_tripped = SliderGeometry::fromProgress(cells, back)
-                                      .thumb_cell;
+        const int round_tripped =
+            SliderGeometry::fromProgress(cells, back).thumb_cell;
         assert(round_tripped == geometry.thumb_cell);
       }
 
@@ -661,8 +682,8 @@ int main() {
     // lifecycle that produced the Round 17 crash.
     int restarts = 0;
     for (int cycle = 0; cycle < 100; ++cycle) {
-      analyzer.start("/nonexistent/termusic-lifecycle.fifo", 44100, 2, 96,
-                     1.0F, 30, [] {});
+      analyzer.start("/nonexistent/termusic-lifecycle.fifo", 44100, 2, 96, 1.0F,
+                     30, [] {});
       for (int frame = 0; frame < 3; ++frame)
         analyzer.analyzePcm(pcm);
       assert(analyzer.companionSizesConsistent());
@@ -729,11 +750,11 @@ int main() {
       int budget;
     };
     const std::vector<Line> lines = {
-        {"Nightfall", 24},                           // ASCII, fits
-        {"Aurora Fields", 12},                       // ASCII, truncated
+        {"Nightfall", 24},                                // ASCII, fits
+        {"Aurora Fields", 12},                            // ASCII, truncated
         {"小镇姑娘和她的很长很长的播放列表名称测试", 18}, // Chinese, truncated
-        {"さくらと日本語のとても長い楽曲名のテスト", 16},  // Japanese, truncated
-        {"\uF001 Loud Noise", 9},                    // Nerd Font glyph
+        {"さくらと日本語のとても長い楽曲名のテスト", 16}, // Japanese, truncated
+        {"\uF001 Loud Noise", 9},                         // Nerd Font glyph
         {"Nightfall (Live at the Roundhouse, 2019)", 34},
     };
     for (const Line &line : lines) {
@@ -811,8 +832,9 @@ int main() {
     assert(keymap.primaryBinding(KeyContext::Tracks, Action::MoveLeft) == "h");
     assert(keymap.primaryBinding(std::vector<KeyContext>{KeyContext::Global},
                                  Action::ToggleImmersive) == "i");
-    assert(keymap.primaryBinding(std::vector<KeyContext>{KeyContext::Global},
-                                 Action::OpenImmersive)
+    assert(keymap
+               .primaryBinding(std::vector<KeyContext>{KeyContext::Global},
+                               Action::OpenImmersive)
                .empty() &&
            "g n is no longer a default");
     const std::vector<KeyContext> immersive{KeyContext::Immersive,
@@ -823,7 +845,6 @@ int main() {
     assert(keymap.primaryBinding(immersive, Action::Next) == "l");
     assert(keymap.primaryBinding(immersive, Action::SeekBackward) == ",");
     assert(keymap.primaryBinding(immersive, Action::SeekForward) == ".");
-
 
     const auto binds = [&](KeyContext context, const char *action,
                            std::vector<std::string> sequences) {
@@ -852,8 +873,7 @@ int main() {
       // Global "n" is shadowed by Tracks' NextMatch (`n`), which is what makes
       // it a legal-but-shadowed configuration rather than a rejection.
       assert(shadow.applyOverride(KeyContext::Global, "previous_match", {"n"}));
-      const auto shadowed =
-          shadow.shadowedIn(KeyContext::Global, "n");
+      const auto shadowed = shadow.shadowedIn(KeyContext::Global, "n");
       bool tracks_shadows = false;
       for (const auto &[context, action] : shadowed) {
         if (context == KeyContext::Tracks && action == Action::NextMatch)
@@ -910,46 +930,53 @@ int main() {
 
     // User replacement removes the default.
     assert(binds(KeyContext::Tree, "create_playlist", {"z"}));
-    assert(keymap.primaryBinding(KeyContext::Tree, Action::CreatePlaylist) == "z");
+    assert(keymap.primaryBinding(KeyContext::Tree, Action::CreatePlaylist) ==
+           "z");
     assert(keymap.feed(std::vector<KeyContext>{KeyContext::Tree}, "z").action ==
            Action::CreatePlaylist);
-    assert(keymap.feed(std::vector<KeyContext>{KeyContext::Tree}, "a")
-               .result == Keymap::Result::None &&
+    assert(keymap.feed(std::vector<KeyContext>{KeyContext::Tree}, "a").result ==
+               Keymap::Result::None &&
            "a replaced default must no longer resolve");
 
     // Aliases: both resolve, the first is the advertised primary.
     assert(binds(KeyContext::Tree, "create_playlist", {"z", "a"}));
-    assert(keymap.primaryBinding(KeyContext::Tree, Action::CreatePlaylist) == "z");
+    assert(keymap.primaryBinding(KeyContext::Tree, Action::CreatePlaylist) ==
+           "z");
     assert(keymap.feed(std::vector<KeyContext>{KeyContext::Tree}, "a").action ==
            Action::CreatePlaylist);
 
     // Sequences: shared prefix resolves both, and a dead end resets cleanly.
-    assert(keymap.feed(std::vector<KeyContext>{KeyContext::Global}, "g").result ==
-           Keymap::Result::Pending);
-    assert(keymap.feed(std::vector<KeyContext>{KeyContext::Global}, "n").action ==
-           Action::OpenImmersive);
-    assert(keymap.feed(std::vector<KeyContext>{KeyContext::Global}, "g").result ==
-           Keymap::Result::Pending);
-    assert(keymap.feed(std::vector<KeyContext>{KeyContext::Global}, "x").result ==
-           Keymap::Result::None &&
-           "a dead end must not fire an unrelated action");
+    assert(
+        keymap.feed(std::vector<KeyContext>{KeyContext::Global}, "g").result ==
+        Keymap::Result::Pending);
+    assert(
+        keymap.feed(std::vector<KeyContext>{KeyContext::Global}, "n").action ==
+        Action::OpenImmersive);
+    assert(
+        keymap.feed(std::vector<KeyContext>{KeyContext::Global}, "g").result ==
+        Keymap::Result::Pending);
+    assert(
+        keymap.feed(std::vector<KeyContext>{KeyContext::Global}, "x").result ==
+            Keymap::Result::None &&
+        "a dead end must not fire an unrelated action");
     assert(!keymap.pending() && "a dead end must clear the pending sequence");
-    assert(keymap.feed(std::vector<KeyContext>{KeyContext::Global}, "g").result ==
-           Keymap::Result::Pending);
-    assert(keymap.feed(std::vector<KeyContext>{KeyContext::Global}, "g").action ==
-           Action::FocusTracks);
+    assert(
+        keymap.feed(std::vector<KeyContext>{KeyContext::Global}, "g").result ==
+        Keymap::Result::Pending);
+    assert(
+        keymap.feed(std::vector<KeyContext>{KeyContext::Global}, "g").action ==
+        Action::FocusTracks);
 
     // A nearer context's prefix outranks a broader context's exact binding.
     // Otherwise a custom global `g` makes Tree's built-in `g g` unreachable.
     {
       Keymap priority;
       priority.loadDefaults();
-      const std::vector<KeyContext> tree{KeyContext::Tree,
-                                         KeyContext::Library,
+      const std::vector<KeyContext> tree{KeyContext::Tree, KeyContext::Library,
                                          KeyContext::Global};
       const std::vector<KeyContext> global{KeyContext::Global};
-      assert(priority.applyOverride(KeyContext::Global, "open_immersive",
-                                    {"g"}));
+      assert(
+          priority.applyOverride(KeyContext::Global, "open_immersive", {"g"}));
       assert(priority.effectOf(KeyContext::Global, Action::OpenImmersive) ==
              Keymap::Effect::Shadowed);
       assert(priority.feed(tree, "g").result == Keymap::Result::Pending);
@@ -960,9 +987,10 @@ int main() {
       assert(priority.applyOverride(KeyContext::Settings, "focus_tracks",
                                     {"g x"}));
       assert(priority.feed(tree, "g").result == Keymap::Result::Pending);
-      assert(priority.feed(std::vector<KeyContext>{KeyContext::Settings,
-                                                   KeyContext::Global},
-                           "x")
+      assert(priority
+                 .feed(std::vector<KeyContext>{KeyContext::Settings,
+                                               KeyContext::Global},
+                       "x")
                  .result == Keymap::Result::None);
       assert(!priority.pending());
     }
@@ -974,8 +1002,8 @@ int main() {
     Keymap defaults;
     defaults.loadDefaults();
     const std::vector<KeyContext> global{KeyContext::Global};
-    const std::vector<KeyContext> tracks{KeyContext::Tracks, KeyContext::Library,
-                                         KeyContext::Global};
+    const std::vector<KeyContext> tracks{
+        KeyContext::Tracks, KeyContext::Library, KeyContext::Global};
     assert(defaults.primaryBinding(tracks, Action::MoveToFirst) == "g g");
     assert(defaults.primaryBinding(tracks, Action::MoveToLast) == "G");
     // Round 50 removals: the global transport, volume, reconnect, database,
@@ -995,12 +1023,14 @@ int main() {
     // Retired page-model commands must have no binding at all.
     assert(defaults.primaryBinding(global, Action::NewPlaylist).empty());
     assert(defaults.primaryBinding(global, Action::AddToQueue).empty());
-    assert(defaults.primaryBinding(global, Action::LoadPlaylistToQueue).empty());
+    assert(
+        defaults.primaryBinding(global, Action::LoadPlaylistToQueue).empty());
     assert(defaults.primaryBinding(global, Action::ToggleQueue).empty());
     // `a` creates a playlist from either Library pane, but never in Visual.
     const std::vector<KeyContext> tree{KeyContext::Tree, KeyContext::Library,
                                        KeyContext::Global};
-    const std::vector<KeyContext> visual{KeyContext::Visual, KeyContext::Global};
+    const std::vector<KeyContext> visual{KeyContext::Visual,
+                                         KeyContext::Global};
     assert(defaults.primaryBinding(tree, Action::CreatePlaylist) == "a");
     assert(defaults.primaryBinding(tracks, Action::CreatePlaylist) == "a");
     assert(defaults.primaryBinding(tracks, Action::MoveQueueItemUp) == "K");
@@ -1021,9 +1051,8 @@ int main() {
     const std::vector<KeyContext> global{KeyContext::Global};
     const std::vector<KeyContext> tree{KeyContext::Tree, KeyContext::Library,
                                        KeyContext::Global};
-    const std::vector<KeyContext> tracks{KeyContext::Tracks,
-                                         KeyContext::Library,
-                                         KeyContext::Global};
+    const std::vector<KeyContext> tracks{
+        KeyContext::Tracks, KeyContext::Library, KeyContext::Global};
     const std::vector<KeyContext> settings{KeyContext::Settings,
                                            KeyContext::Global};
     const auto resolvesIn = [&](const std::vector<KeyContext> &chain,
@@ -1034,13 +1063,15 @@ int main() {
     };
 
     // 1. The removed global shortcuts are no-ops, in every workspace context.
-    for (const char *token : {"]", "[", "+", "-", "R", "u", "H", "L", "<", ">",
-                              "?"}) {
+    for (const char *token :
+         {"]", "[", "+", "-", "R", "u", "H", "<", ">", "?"}) {
       assert(resolvesIn(global, token).result == Keymap::Result::None);
       assert(resolvesIn(global, token).action == Action::None);
       assert(resolvesIn(tree, token).action == Action::None);
       assert(resolvesIn(tracks, token).action == Action::None);
     }
+    assert(resolvesIn(global, "L").action == Action::ToggleLyrics);
+    assert(resolvesIn(tree, "L").action == Action::ToggleLyrics);
 
     // 2. Tree keeps exactly one spelling per move, and its half-page keys are
     //    PageDown/PageUp. Tracks keeps Ctrl+d/Ctrl+u; Tree does not.
@@ -1065,7 +1096,8 @@ int main() {
     // 3. Settings has no `r` reset. The key falls through to Global's repeat
     //    toggle instead of silently resetting a binding.
     assert(resolvesIn(settings, "r").action == Action::ToggleRepeat);
-    assert(resolvesTo(KeyContext::Settings, "r").action != Action::ResetBinding);
+    assert(resolvesTo(KeyContext::Settings, "r").action !=
+           Action::ResetBinding);
     {
       Keymap defaults;
       defaults.loadDefaults();
@@ -1100,7 +1132,8 @@ int main() {
     assert(actionConfigurableIn(Action::HalfPageDown, KeyContext::Tree));
     // The recovery entry stays configurable through TOML, but is never an
     // editable row.
-    assert(actionConfigurableIn(Action::ResetAllBindings, KeyContext::Settings));
+    assert(
+        actionConfigurableIn(Action::ResetAllBindings, KeyContext::Settings));
     assert(!actionEditable(Action::ResetAllBindings));
 
     // 5. An obsolete override is refused and leaves the shipped binding alone.
@@ -1109,8 +1142,8 @@ int main() {
       Keymap legacy;
       legacy.loadDefaults();
       std::string problem;
-      assert(!legacy.applyOverride(KeyContext::Global, "quit", {"l j"},
-                                   &problem));
+      assert(
+          !legacy.applyOverride(KeyContext::Global, "quit", {"l j"}, &problem));
       assert(problem.find("not configurable") != std::string::npos);
       assert(legacy.primaryBinding(KeyContext::Global, Action::Quit) == "q");
       assert(legacy.feed(global, "q").action == Action::Quit);
@@ -1121,8 +1154,8 @@ int main() {
         assert(!legacy.applyOverride(KeyContext::Global, action, {"z"}, &why));
         assert(why.find("not configurable") != std::string::npos);
       }
-      assert(!legacy.applyOverride(KeyContext::Settings, "reset_binding",
-                                   {"z"}));
+      assert(
+          !legacy.applyOverride(KeyContext::Settings, "reset_binding", {"z"}));
       // Nothing was mutated by the refusals.
       assert(legacy.validate().empty());
       assert(legacy.primaryBinding(global, Action::ToggleRepeat) == "r");
@@ -1147,7 +1180,8 @@ int main() {
       }
       Keymap reserved;
       reserved.loadDefaults();
-      assert(reserved.primaryBinding(KeyContext::Tree, Action::MoveDown) == "j");
+      assert(reserved.primaryBinding(KeyContext::Tree, Action::MoveDown) ==
+             "j");
       assert(reserved.feed(tree, "q").action == Action::Quit);
       assert(reserved.validate().empty());
     }
@@ -1175,12 +1209,12 @@ int main() {
       assert(!showsRow(map, KeyContext::Global, Action::SectionNext));
       assert(!showsRow(map, KeyContext::Settings, Action::ResetBinding));
       assert(!showsRow(map, KeyContext::Settings, Action::ResetAllBindings));
-      // The complete Global section after the cleanup: seven editable rows.
+      // The complete Global section after the cleanup: eight editable rows.
       const std::vector<std::pair<Action, const char *>> expected_global = {
-          {Action::PageLibrary, "1"},   {Action::PageSettings, "2"},
-          {Action::TogglePlay, "Space"}, {Action::ToggleRepeat, "r"},
-          {Action::ToggleShuffle, "s"}, {Action::Cancel, "Esc"},
-          {Action::ToggleImmersive, "i"},
+          {Action::PageLibrary, "1"},     {Action::PageSettings, "2"},
+          {Action::TogglePlay, "Space"},  {Action::ToggleRepeat, "r"},
+          {Action::ToggleShuffle, "s"},   {Action::Cancel, "Esc"},
+          {Action::ToggleImmersive, "i"}, {Action::ToggleLyrics, "L"},
       };
       int rows = 0;
       for (const auto &[action, binding] : map.listing(KeyContext::Global)) {
@@ -1201,8 +1235,10 @@ int main() {
       assert(map.bindingsFor(KeyContext::Tree, Action::MoveUp).size() == 1U);
       assert(map.bindingsFor(KeyContext::Tree, Action::HalfPageDown).size() ==
              1U);
-      assert(map.bindingsFor(KeyContext::Tree, Action::HalfPageUp).size() == 1U);
-      assert(map.bindingsFor(KeyContext::Tracks, Action::MoveDown).size() == 1U);
+      assert(map.bindingsFor(KeyContext::Tree, Action::HalfPageUp).size() ==
+             1U);
+      assert(map.bindingsFor(KeyContext::Tracks, Action::MoveDown).size() ==
+             1U);
       assert(map.bindingsFor(KeyContext::Tracks, Action::HalfPageDown).size() ==
              2U);
       assert(map.bindingsFor(KeyContext::Tracks, Action::HalfPageUp).size() ==
@@ -1230,6 +1266,11 @@ int main() {
   config.plugin_settings["lyrics"]["provider"] = "local";
   config.plugin_settings["lyrics"]["token"] = "part#1\\\"quoted\\path\nnext";
   config.mpd_password = "secret#value\\\"with\\slashes\t";
+  config.subsonic_enabled = true;
+  config.subsonic_url = "https://music.example.com";
+  config.subsonic_username = "listener";
+  config.subsonic_password = "online#secret";
+  config.subsonic_timeout_ms = 9500;
   config.keybindings["global"]["toggle_immersive"] = {"i", "Ctrl+i"};
   config.keybindings["immersive"]["seek_backward"] = {","};
   std::string error;
@@ -1245,6 +1286,11 @@ int main() {
   assert(loaded.plugin_settings.at("lyrics").at("token") ==
          config.plugin_settings.at("lyrics").at("token"));
   assert(loaded.mpd_password == config.mpd_password);
+  assert(loaded.subsonic_enabled);
+  assert(loaded.subsonic_url == config.subsonic_url);
+  assert(loaded.subsonic_username == config.subsonic_username);
+  assert(loaded.subsonic_password == config.subsonic_password);
+  assert(loaded.subsonic_timeout_ms == 9500);
   assert(loaded.keybindings.at("global").at("toggle_immersive") ==
          config.keybindings.at("global").at("toggle_immersive"));
   assert(loaded.keybindings.at("immersive").at("seek_backward") ==
@@ -1265,9 +1311,8 @@ int main() {
     const auto directory =
         std::filesystem::temp_directory_path() /
         ("termusic-release-config-" +
-         std::to_string(std::chrono::steady_clock::now()
-                            .time_since_epoch()
-                            .count()));
+         std::to_string(
+             std::chrono::steady_clock::now().time_since_epoch().count()));
     std::filesystem::remove_all(directory);
     std::filesystem::create_directories(directory);
     const auto file = directory / "config.toml";
@@ -1293,6 +1338,11 @@ int main() {
       assert(parsed.mpd_port == defaults.mpd_port);
       assert(parsed.mpd_timeout_ms == defaults.mpd_timeout_ms);
       assert(parsed.auto_reconnect == defaults.auto_reconnect);
+      assert(parsed.subsonic_enabled == defaults.subsonic_enabled);
+      assert(parsed.subsonic_url == defaults.subsonic_url);
+      assert(parsed.subsonic_username == defaults.subsonic_username);
+      assert(parsed.subsonic_password == defaults.subsonic_password);
+      assert(parsed.subsonic_timeout_ms == defaults.subsonic_timeout_ms);
       assert(parsed.theme_name == defaults.theme_name);
       assert(parsed.icon_set == defaults.icon_set);
       // `visualizer.style` and `visualizer.enabled` no longer exist: the
@@ -1518,8 +1568,7 @@ int main() {
     ::unsetenv("XDG_DATA_HOME");
     ::unsetenv("XDG_CACHE_HOME");
     AppPaths paths = resolveAppPaths();
-    assert(paths.configFile() ==
-           "/home/example/.config/termusic/config.toml");
+    assert(paths.configFile() == "/home/example/.config/termusic/config.toml");
     assert(paths.data_directory == "/home/example/.local/share/termusic");
     assert(paths.cache_directory == "/home/example/.cache/termusic");
     assert(paths.pluginDirectory() ==
@@ -1539,8 +1588,7 @@ int main() {
     // writing into the working directory.
     ::setenv("XDG_CONFIG_HOME", ".", 1);
     paths = resolveAppPaths();
-    assert(paths.configFile() ==
-           "/home/example/.config/termusic/config.toml");
+    assert(paths.configFile() == "/home/example/.config/termusic/config.toml");
 
     // --config wins over everything, and an explicit relative path is honored
     // because the user typed it.
@@ -1598,11 +1646,13 @@ int main() {
     const ui::Theme &kanagawa = themes.resolve("kanagawa");
     // A few load-bearing Mocha values, asserted against the official palette.
     assert(mocha.background == ftxui::Color::RGB(0x1E, 0x1E, 0x2E)); // Base
-    assert(mocha.background_deep == ftxui::Color::RGB(0x11, 0x11, 0x1B)); // Crust
+    assert(mocha.background_deep ==
+           ftxui::Color::RGB(0x11, 0x11, 0x1B)); // Crust
     assert(mocha.text == ftxui::Color::RGB(0xCD, 0xD6, 0xF4));
     assert(mocha.tree_cursor_bg == ftxui::Color::RGB(0xF5, 0xC2, 0xE7)); // Pink
-    assert(mocha.track_cursor_bg == ftxui::Color::RGB(0xCB, 0xA6, 0xF7)); // Mauve
-    assert(mocha.playing == ftxui::Color::RGB(0x89, 0xDC, 0xEB));        // Sky
+    assert(mocha.track_cursor_bg ==
+           ftxui::Color::RGB(0xCB, 0xA6, 0xF7));                  // Mauve
+    assert(mocha.playing == ftxui::Color::RGB(0x89, 0xDC, 0xEB)); // Sky
     assert(mocha.active_collection ==
            ftxui::Color::RGB(0x74, 0xC7, 0xEC)); // Sapphire
     assert(mocha.progress_filled == ftxui::Color::RGB(0xCB, 0xA6, 0xF7));
@@ -1713,7 +1763,7 @@ int main() {
     // The canonical order, by stable id.
     const std::array<std::string_view, 6> expected_order = {
         "core:general", "core:appearance", "core:keybindings",
-        "core:plugins", "core:about",    "core:help"};
+        "core:plugins", "core:about",      "core:help"};
     for (std::size_t index = 0; index < expected_order.size(); ++index) {
       assert(kCoreSections[index].id == expected_order[index]);
     }
@@ -1745,7 +1795,8 @@ int main() {
         continue;
       ++children;
       // The tree must present them in the SAME order as the registry.
-      assert(node.id == kCoreSections[static_cast<std::size_t>(children - 1)].id);
+      assert(node.id ==
+             kCoreSections[static_cast<std::size_t>(children - 1)].id);
       const bool document = node.id == "core:help" || node.id == "core:about";
       assert(document || node.core_kind == CoreSectionKind::Settings);
       if (document)
@@ -1765,7 +1816,7 @@ int main() {
     const auto list = builtins.list();
     assert(list.size() == 7);
     const std::array<std::string_view, 7> expected = {
-        "catppuccin-mocha", "kanagawa", "material-palenight", "monokai-pro",
+        "catppuccin-mocha", "kanagawa",  "material-palenight",  "monokai-pro",
         "github-dark",      "oxocarbon", "catppuccin-macchiato"};
     for (std::size_t index = 0; index < expected.size(); ++index) {
       assert(list[index].id == expected[index]);
@@ -1790,8 +1841,9 @@ int main() {
     const termusic::ui::Theme &fallback_mocha =
         builtins.resolve("catppuccin-mocha");
     assert(legacy.tree_cursor_bg == fallback_mocha.tree_cursor_bg);
-    std::cout << "themes: " << list.size()
-              << " built-ins, default catppuccin-mocha, unknown id falls back\n";
+    std::cout
+        << "themes: " << list.size()
+        << " built-ins, default catppuccin-mocha, unknown id falls back\n";
   }
 
   // --- Icons ---------------------------------------------------------------
@@ -1801,14 +1853,15 @@ int main() {
   // symbols rather than emoji, whose width varies between terminals.
   {
     using termusic::ui::Icon;
-    using termusic::ui::IconSet;
     using termusic::ui::iconGlyph;
+    using termusic::ui::IconSet;
     using termusic::ui::isContentIcon;
     const Icon all[] = {
-        Icon::Shuffle,  Icon::Previous, Icon::Play,     Icon::Pause,
-        Icon::Next,     Icon::Repeat,   Icon::Speaker,  Icon::Folder,
-        Icon::FolderOpen, Icon::Library, Icon::History, Icon::Playlist,
-        Icon::Music,      Icon::Document, Icon::Settings,
+        Icon::Shuffle,    Icon::Previous, Icon::Play,     Icon::Pause,
+        Icon::Next,       Icon::Repeat,   Icon::Speaker,  Icon::Folder,
+        Icon::FolderOpen, Icon::Library,  Icon::History,  Icon::Stream,
+        Icon::Agent,      Icon::Playlist, Icon::Music,    Icon::Document,
+        Icon::Settings,
     };
     for (const Icon icon : all) {
       for (const IconSet set : {IconSet::NerdFont, IconSet::Unicode}) {
@@ -1894,9 +1947,8 @@ int main() {
         assert(m.history_columns.artist > 0);
         assert(termusic::util::displayWidth("Played At") <=
                m.history_columns.played);
-        assert(termusic::util::displayWidth(
-                   termusic::util::formatPlayedAt(1789084001LL)) ==
-               m.history_columns.played);
+        assert(termusic::util::displayWidth(termusic::util::formatPlayedAt(
+                   1789084001LL)) == m.history_columns.played);
       }
 
       // Playlist shows exactly what `listplaylistinfo` can report: no size and

@@ -8,22 +8,6 @@
 namespace termusic::ui::core {
 namespace {
 
-/// Which thing the display area shows.
-///
-/// ONE value, never a pair of booleans: "both" and "neither" are not
-/// representable, so the display can never be left empty or doubled up.
-enum class DisplayMode {
-  Visualizer, ///< the Spectrum, the only display that exists
-  Disc,       ///< RESERVED: offered next to it, not implemented yet
-};
-
-/// The mode in force. The Spectrum is the only display the application has, so
-/// every configuration resolves to it -- a legacy `visualizer.enabled = false`
-/// stays what it always was, a plain "stop analysing" switch, and never turns
-/// into a second display mode. Disc is a placeholder row until a later round
-/// gives it a renderer.
-constexpr DisplayMode kDisplayMode = DisplayMode::Visualizer;
-
 /// Appearance: how the application looks, and what the display area shows.
 ///
 /// The theme, the palette and the visualizer controls used to be hand-built
@@ -77,23 +61,21 @@ protected:
         },
         "Seven presets ship with Termusic; Catppuccin Mocha is the default."));
     items.push_back(heading("Display"));
-    // The two modes are mutually exclusive by construction: there is one
-    // DisplayMode, so picking one IS deselecting the other. Enter can only ever
-    // CLEAR a checked toggle, and clearing the Spectrum would leave the display
-    // with nothing to show -- Disc, the only other mode, does not exist yet --
-    // so the flip is refused and the row always reads `Visualizer [x] on`.
     items.push_back(toggle(
-        "Visualizer",
-        [] { return kDisplayMode == DisplayMode::Visualizer; },
-        [](bool value) {
-          // Enter can only CLEAR a checked toggle, and clearing the Spectrum
-          // would leave the display with nothing to show: Disc, the only other
-          // mode, does not exist yet. The value is therefore re-asserted, never
-          // dropped -- choosing Visualizer is idempotent.
-          (void)value;
+        "Spectrum",
+        [this] { return context_->state.display_mode == DisplayMode::Spectrum; },
+        [this](bool value) {
+          if (value)
+            context_->state.display_mode = DisplayMode::Spectrum;
         },
         "Show the music spectrum visualization."));
-    items.push_back(disabled("Disc", "Coming soon."));
+    items.push_back(toggle(
+        "Disc", [this] { return context_->state.display_mode == DisplayMode::Disc; },
+        [this](bool value) {
+          if (value)
+            context_->state.display_mode = DisplayMode::Disc;
+        },
+        "Show a smoothly animated vinyl record and tonearm."));
     items.push_back(select(
         "Palette", std::move(palettes),
         [this, palette_ids] {

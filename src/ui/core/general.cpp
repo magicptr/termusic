@@ -28,6 +28,12 @@ protected:
     host_ = context.config().mpd_host;
     port_ = context.config().mpd_port;
     password_ = context.config().mpd_password;
+    library_path_ = context.config().library_path;
+    subsonic_enabled_ = context.config().subsonic_enabled;
+    subsonic_url_ = context.config().subsonic_url;
+    subsonic_username_ = context.config().subsonic_username;
+    subsonic_password_ = context.config().subsonic_password;
+    subsonic_timeout_ms_ = context.config().subsonic_timeout_ms;
 
     std::vector<std::string> pages;
     pages.reserve(allPages().size());
@@ -54,6 +60,55 @@ protected:
         "Volume step", [this] { return context_->config().volume_step; },
         [this](int value) { context_->controller.setVolumeStep(value); }, 1, 25,
         1, " %", 1, "How far one volume key moves."));
+
+    items.push_back(heading("Library and lyrics"));
+    items.push_back(input(
+        "Local music path", [this] { return library_path_; },
+        [this](const std::string &value) {
+          library_path_ = value;
+          context_->controller.setLibraryPath(value);
+        },
+        "The local directory MPD serves. Used to locate .lrc and .txt "
+        "sidecar lyrics; it does not reconfigure MPD."));
+
+    items.push_back(heading("Online music library"));
+    items.push_back(toggle(
+        "Enable Subsonic", [this] { return subsonic_enabled_; },
+        [this](bool value) { subsonic_enabled_ = value; },
+        "Works with Navidrome, Gonic, Airsonic and Subsonic servers."));
+    items.push_back(input(
+        "Server URL", [this] { return subsonic_url_; },
+        [this](const std::string &value) { subsonic_url_ = value; },
+        "Server root, for example https://music.example.com (without /rest)."));
+    items.push_back(input(
+        "Online username", [this] { return subsonic_username_; },
+        [this](const std::string &value) { subsonic_username_ = value; },
+        "The Subsonic/Navidrome account used for catalog search."));
+    items.push_back(input(
+        "Online password", [this] { return subsonic_password_; },
+        [this](const std::string &value) { subsonic_password_ = value; },
+        "Stored in the owner-only config file; requests use salted tokens.",
+        true));
+    items.push_back(number(
+        "Online timeout", [this] { return subsonic_timeout_ms_; },
+        [this](int value) { subsonic_timeout_ms_ = value; }, 500, 60000, 500,
+        " ms", 4, "Maximum duration of one online catalog request."));
+    items.push_back(action(
+        "Save online library",
+        [this] {
+          context_->controller.setSubsonicSettings(
+              subsonic_enabled_, subsonic_url_, subsonic_username_,
+              subsonic_password_, subsonic_timeout_ms_);
+        },
+        "Registers the provider immediately; Agent searches it on the next request."));
+    items.push_back(note([this] {
+      if (context_ == nullptr)
+        return std::string();
+      return std::string(
+          context_->controller.streamingService().provider("subsonic")
+              ? "Online provider  ready"
+              : "Online provider  disabled or incomplete");
+    }));
 
     items.push_back(heading("MPD server"));
     items.push_back(note([this] {
@@ -126,6 +181,12 @@ private:
   std::string host_;
   int port_ = 0;
   std::string password_;
+  std::string library_path_;
+  bool subsonic_enabled_ = false;
+  std::string subsonic_url_;
+  std::string subsonic_username_;
+  std::string subsonic_password_;
+  int subsonic_timeout_ms_ = 8000;
 };
 
 } // namespace

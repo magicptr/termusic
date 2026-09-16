@@ -1,11 +1,14 @@
 #include "controller/controller.hpp"
 
 #include "app/playback.hpp"
-
+#include "streaming/direct_url_provider.hpp"
+#include "streaming/subsonic_provider.hpp"
 
 #include <algorithm>
 #include <cctype>
 #include <chrono>
+#include <set>
+#include <sstream>
 #include <utility>
 
 #include "ui/visualizer/palette.hpp"
@@ -19,9 +22,8 @@ Controller::Controller(MpdBackend &backend, AppState &state, Config &config,
       config_store_(config_store) {
   syncSettingsState();
   state_.page = config_.start_page;
-  state_.focus = state_.page == Page::Library
-                     ? FocusArea::Library
-                     : FocusArea::Settings;
+  state_.focus =
+      state_.page == Page::Library ? FocusArea::Library : FocusArea::Settings;
   state_.visualizer.sensitivity = config_.visualizer_sensitivity;
   // Until main() hands over the resolved endpoint, the stored configuration is
   // the best answer available.
@@ -33,10 +35,15 @@ Controller::Controller(MpdBackend &backend, AppState &state, Config &config,
   // History is application state, independent of MPD: load it before the
   // first connection so it survives a backend that is down. A user who turned
   // history off gets neither a read nor a write -- the file is left alone.
-  history_.setMaxEntries(static_cast<std::size_t>(
-      std::max(1, config_.history_max_entries)));
+  history_.setMaxEntries(
+      static_cast<std::size_t>(std::max(1, config_.history_max_entries)));
   if (config_.history_enabled)
     (void)history_.load();
+  (void)streaming_.registerProvider(
+      std::make_shared<streaming::DirectUrlProvider>());
+  configureSubsonicProvider();
+  (void)stream_store_.load();
+  refreshStreamSongs();
 }
 
 void Controller::useConnectionSettings(const ConnectionSettings &settings) {
@@ -92,24 +99,24 @@ bool Controller::reconnect() {
     }
     state_.error = "Connection refused";
     if (diagnostics_ != nullptr)
-      diagnostics_->write("mpd: " + connection_.host + ":" +
-                          std::to_string(connection_.port) +
-                          " did not answer a " +
-                          std::to_string(kReachabilityProbeMs) +
-                          "ms probe; not attempting a full connect");
+      diagnostics_->write(
+          "mpd: " + connection_.host + ":" + std::to_string(connection_.port) +
+          " did not answer a " + std::to_string(kReachabilityProbeMs) +
+          "ms probe; not attempting a full connect");
     return false;
   }
   // Never zero: see kDefaultMpdTimeoutMs. resolveConnection() already
   // guarantees a sane value, and this is the second line of defence.
-  options.timeout_ms = static_cast<unsigned>(
-      connection_.timeout_ms > 0 ? connection_.timeout_ms : kDefaultMpdTimeoutMs);
+  options.timeout_ms =
+      static_cast<unsigned>(connection_.timeout_ms > 0 ? connection_.timeout_ms
+                                                       : kDefaultMpdTimeoutMs);
   state_.mpd_connected = backend_.connect(options);
   if (!state_.mpd_connected) {
     state_.error = conciseConnectionError(backend_.lastError());
     if (diagnostics_ != nullptr)
       diagnostics_->write("mpd: connect to " + connection_.host + ":" +
-                          std::to_string(connection_.port) + " failed: " +
-                          state_.error.value_or("unknown error"));
+                          std::to_string(connection_.port) +
+                          " failed: " + state_.error.value_or("unknown error"));
     state_.player = PlayerState{};
     state_.queue.clear();
     state_.library.songs.clear();
@@ -190,7 +197,7 @@ void Controller::execute(Action action) {
   case Action::FocusNext:
     state_.focus = state_.focus == FocusArea::PlayerBar
                        ? (state_.page == Page::Library ? FocusArea::Library
-                                                      : FocusArea::Settings)
+                                                       : FocusArea::Settings)
                        : FocusArea::PlayerBar;
     break;
   case Action::TogglePlay: {
@@ -337,12 +344,165 @@ void Controller::refreshPlayer() {
   if (!backend_.connected())
     return;
   state_.player = backend_.fetchPlayerState();
+  enrichStreamingSong(state_.player);
   reportResult(backend_.connected());
   maybeRecordHistory();
   // Order matters: the history record for a NEW occurrence must exist before
   // the session tries to name it, and following an automatic advance must not
   // depend on which collection is being browsed.
   syncPlaybackSession();
+}
+
+void Controller::enrichStreamingSong(PlayerState &player) const {
+  if (!player.current_song || !session_.owns_queue ||
+      !player.current_song->queue_position)
+    return;
+  const std::size_t position = *player.current_song->queue_position;
+  if (position >= session_.sequence.size())
+    return;
+  const Song &original = session_.sequence[position];
+  if (original.uri != player.current_song->uri || original.source_id.empty())
+    return;
+  player.current_song->source_id = original.source_id;
+  player.current_song->source_track_id = original.source_track_id;
+  player.current_song->is_live_stream = original.is_live_stream;
+  if (player.current_song->title.empty())
+    player.current_song->title = original.title;
+  if (player.current_song->artist.empty())
+    player.current_song->artist = original.artist;
+  if (player.current_song->album.empty())
+    player.current_song->album = original.album;
+}
+
+void Controller::refreshStreamSongs() {
+  stream_songs_.clear();
+  stream_songs_.reserve(stream_store_.tracks().size());
+  for (const streaming::Track &track : stream_store_.tracks()) {
+    const auto resolved = streaming_.resolve(track);
+    if (!resolved)
+      continue;
+    stream_songs_.push_back(
+        streaming::Service::playableSong(track, resolved.value()));
+  }
+}
+
+bool Controller::addDirectStream(std::string url, std::string *error) {
+  auto track = streaming::DirectUrlProvider::makeTrack(std::move(url));
+  if (!track) {
+    if (error != nullptr)
+      *error = track.error().message;
+    return false;
+  }
+  if (!stream_store_.add(track.takeValue())) {
+    if (error != nullptr)
+      *error = "This stream is already in Streams";
+    return false;
+  }
+  std::string save_error;
+  const bool saved = stream_store_.save(&save_error);
+  refreshStreamSongs();
+  if (!saved && error != nullptr)
+    *error = save_error;
+  return saved;
+}
+
+void Controller::configureSubsonicProvider() {
+  (void)streaming_.unregisterProvider("subsonic");
+  if (!config_.subsonic_enabled)
+    return;
+  streaming::SubsonicSettings settings;
+  settings.server_url = config_.subsonic_url;
+  settings.username = config_.subsonic_username;
+  settings.password = config_.subsonic_password;
+  settings.timeout_ms = config_.subsonic_timeout_ms;
+  if (settings.valid())
+    (void)streaming_.registerProvider(
+        std::make_shared<streaming::SubsonicProvider>(std::move(settings)));
+}
+
+agent::QueryResult Controller::queryAgent(std::string_view prompt) {
+  const agent::QueryIntent intent = agent::MusicAgent::parseIntent(prompt);
+  const std::string &search_text = intent.search_text;
+  std::vector<Song> local;
+  // An explicit source constraint is also an I/O constraint: do not query MPD
+  // for results the ranker would discard.
+  if (intent.scope != agent::SourceScope::StreamOnly) {
+    if (state_.demo) {
+      local =
+          state_.library.songs.empty() ? state_.queue : state_.library.songs;
+    } else if (backend_.connected()) {
+      if (search_text.empty()) {
+        local = backend_.fetchAllSongs();
+      } else {
+        // MPD's `any` constraint receives one value. Query every whitespace
+        // term separately so "artist title" can match different tags; the
+        // Agent ranker then rewards rows matching both.
+        std::istringstream input(search_text);
+        std::set<std::string> seen;
+        for (std::string term; input >> term;) {
+          for (Song &song : backend_.search(term)) {
+            if (seen.insert(song.uri).second)
+              local.push_back(std::move(song));
+          }
+        }
+      }
+    }
+  }
+  return music_agent_.query(prompt, local, stream_songs_);
+}
+
+bool Controller::hasSearchableStreamingProviders() const {
+  for (const streaming::ProviderInfo &provider : streaming_.providers()) {
+    if (streaming::hasCapability(provider.capabilities,
+                                 streaming::Capability::Search))
+      return true;
+  }
+  return false;
+}
+
+agent::StreamingCatalogResult Controller::queryAgentStreamingCatalog(
+    std::string_view prompt, std::stop_token stop) const {
+  agent::StreamingCatalogResult result;
+  streaming::SearchRequest request;
+  request.query = agent::MusicAgent::extractSearchText(prompt);
+  request.limit = 50;
+  if (request.query.empty() || stop.stop_requested())
+    return result;
+
+  const streaming::CatalogSearchResult catalog =
+      streaming_.searchAll(request, stop);
+  for (const streaming::ProviderFailure &failure : catalog.failures)
+    result.warnings.push_back(failure.provider_id + ": " +
+                              failure.error.message);
+  for (const streaming::Track &track : catalog.tracks) {
+    if (stop.stop_requested())
+      break;
+    const auto resolved = streaming_.resolve(track, stop);
+    if (!resolved) {
+      result.warnings.push_back(track.provider_id + ": " +
+                                resolved.error().message);
+      continue;
+    }
+    result.songs.push_back(
+        streaming::Service::playableSong(track, resolved.value()));
+  }
+  return result;
+}
+
+int Controller::removeStreamEntries(const std::vector<std::size_t> &positions,
+                                    std::string *error) {
+  const int removed = stream_store_.removePositions(positions);
+  if (removed == 0)
+    return 0;
+  std::string save_error;
+  const bool saved = stream_store_.save(&save_error);
+  refreshStreamSongs();
+  if (!saved) {
+    if (error != nullptr)
+      *error = save_error;
+    return -1;
+  }
+  return removed;
 }
 
 void Controller::maybeRecordHistory() {
@@ -393,7 +553,16 @@ void Controller::maybeRecordHistory() {
 
   if (!record)
     return;
-  history_.record(*player.current_song);
+  Song history_song = *player.current_song;
+  if (!history_song.source_id.empty() &&
+      !history_song.source_track_id.empty()) {
+    // Provider playback URLs may carry replayable auth tokens or expire. The
+    // durable history record keeps only the stable provider identity; replay
+    // resolves a fresh URL in playTrackAt().
+    history_song.uri = "provider:" + history_song.source_id + ":" +
+                       history_song.source_track_id;
+  }
+  history_.record(history_song);
   std::string error;
   if (!history_.save(&error))
     toast("History not saved: " + error);
@@ -421,9 +590,8 @@ bool Controller::moveCurrentPlaylistItem(int position, int delta) {
   const int to = std::clamp(from + delta, 0, count - 1);
   if (from == to)
     return false;
-  const bool result =
-      backend_.moveInPlaylist(name, static_cast<unsigned>(from),
-                              static_cast<unsigned>(to));
+  const bool result = backend_.moveInPlaylist(name, static_cast<unsigned>(from),
+                                              static_cast<unsigned>(to));
   reportResult(result, "Reordered \"" + name + "\"");
   if (result) {
     state_.library.selected = to;
@@ -455,9 +623,9 @@ void Controller::applyQueueFilter() {
       state_.queue_visible.push_back(static_cast<int>(index));
     }
   }
-  state_.selected_queue =
-      std::clamp(state_.selected_queue, 0,
-                 std::max(0, static_cast<int>(state_.queue_visible.size()) - 1));
+  state_.selected_queue = std::clamp(
+      state_.selected_queue, 0,
+      std::max(0, static_cast<int>(state_.queue_visible.size()) - 1));
 }
 
 void Controller::refreshPlaylists() {
@@ -469,18 +637,16 @@ void Controller::refreshPlaylists() {
   if (state_.library.current >= 0 &&
       state_.library.current <
           static_cast<int>(state_.library.playlists.size())) {
-    selected = state_.library.playlists[static_cast<std::size_t>(
-        state_.library.current)];
+    selected = state_.library
+                   .playlists[static_cast<std::size_t>(state_.library.current)];
   }
-  state_.library.playlists =
-      playlistsWithDefault(backend_.listPlaylists());
+  state_.library.playlists = playlistsWithDefault(backend_.listPlaylists());
   const auto found = std::find(state_.library.playlists.begin(),
                                state_.library.playlists.end(), selected);
-  state_.library.current =
-      found == state_.library.playlists.end()
-          ? 0
-          : static_cast<int>(
-                std::distance(state_.library.playlists.begin(), found));
+  state_.library.current = found == state_.library.playlists.end()
+                               ? 0
+                               : static_cast<int>(std::distance(
+                                     state_.library.playlists.begin(), found));
 }
 
 void Controller::refreshLibrary() {
@@ -490,9 +656,9 @@ void Controller::refreshLibrary() {
   if (state_.library.database_view || state_.library.current == 0) {
     state_.library.songs = backend_.fetchAllSongs();
   } else if (!state_.library.playlists.empty()) {
-    state_.library.current = std::clamp(
-        state_.library.current, 0,
-        static_cast<int>(state_.library.playlists.size()) - 1);
+    state_.library.current =
+        std::clamp(state_.library.current, 0,
+                   static_cast<int>(state_.library.playlists.size()) - 1);
     state_.library.songs = backend_.listPlaylist(
         state_.library
             .playlists[static_cast<std::size_t>(state_.library.current)]);
@@ -596,8 +762,8 @@ void Controller::selectPage(Page page) {
   state_.page = page;
   // Returning from Settings must preserve the collection already open in the
   // Library workspace. Page selection does not imply Default selection.
-  state_.focus = page == Page::Settings ? FocusArea::Settings
-                                        : FocusArea::Library;
+  state_.focus =
+      page == Page::Settings ? FocusArea::Settings : FocusArea::Library;
   clearSearch();
 }
 
@@ -609,7 +775,6 @@ void Controller::selectDatabase() {
   state_.search_query.clear();
   refreshLibrary();
 }
-
 
 void Controller::selectPlaylist(int index) {
   if (state_.library.playlists.empty())
@@ -642,9 +807,9 @@ void Controller::activateLibrarySelection() {
   // playback context.
   if (state_.library.visible.empty() || !state_.library.database_view)
     return;
-  const int visible = std::clamp(
-      state_.library.selected, 0,
-      static_cast<int>(state_.library.visible.size()) - 1);
+  const int visible =
+      std::clamp(state_.library.selected, 0,
+                 static_cast<int>(state_.library.visible.size()) - 1);
   const int row = state_.library.visible[static_cast<std::size_t>(visible)];
   PlaybackCollection context;
   context.kind = PlaybackCollection::Kind::Library;
@@ -669,6 +834,11 @@ void Controller::setSeekStep(int seconds) {
 }
 void Controller::setVolumeStep(int percent) {
   config_.volume_step = std::clamp(percent, 1, 25);
+  syncSettingsState();
+  saveConfig();
+}
+void Controller::setLibraryPath(std::string path) {
+  config_.library_path = std::move(path);
   syncSettingsState();
   saveConfig();
 }
@@ -742,6 +912,18 @@ void Controller::setMpdConnection(std::string host, int port,
   // and a failed connection leaves the saved setting in place for the next run.
   saveConfig();
   reconnect();
+}
+
+void Controller::setSubsonicSettings(bool enabled, std::string url,
+                                      std::string username,
+                                      std::string password, int timeout_ms) {
+  config_.subsonic_enabled = enabled;
+  config_.subsonic_url = std::move(url);
+  config_.subsonic_username = std::move(username);
+  config_.subsonic_password = std::move(password);
+  config_.subsonic_timeout_ms = std::clamp(timeout_ms, 500, 60000);
+  configureSubsonicProvider();
+  saveConfig();
 }
 
 bool Controller::createPlaylist(std::string_view name) {
@@ -896,10 +1078,10 @@ const Song *Controller::selectedSong() const {
 const Song *Controller::selectedQueueSong() const {
   if (state_.queue_visible.empty())
     return nullptr;
-  const int index = std::clamp(state_.selected_queue, 0,
-                               static_cast<int>(state_.queue_visible.size()) - 1);
-  const int queue_index =
-      state_.queue_visible[static_cast<std::size_t>(index)];
+  const int index =
+      std::clamp(state_.selected_queue, 0,
+                 static_cast<int>(state_.queue_visible.size()) - 1);
+  const int queue_index = state_.queue_visible[static_cast<std::size_t>(index)];
   if (queue_index < 0 || queue_index >= static_cast<int>(state_.queue.size()))
     return nullptr;
   return &state_.queue[static_cast<std::size_t>(queue_index)];
@@ -970,6 +1152,14 @@ bool Controller::collectionExists(const PlaybackCollection &collection) const {
     return true;
   case PlaybackCollection::Kind::History:
     return history_.epoch() == session_.history_epoch;
+  case PlaybackCollection::Kind::Streams:
+    // A running stream session owns a snapshot just like every other playback
+    // context; editing the saved list does not rewrite that in-flight run.
+    return true;
+  case PlaybackCollection::Kind::Agent:
+    // Results are copied into the playback session, so a later Agent query
+    // cannot rewrite a run that is already playing.
+    return true;
   case PlaybackCollection::Kind::Playlist:
     break;
   }
@@ -1099,7 +1289,6 @@ void Controller::stepContext(int delta) {
   refreshPlayer();
 }
 
-
 int Controller::removeHistoryRecords(const std::vector<long long> &ids) {
   int removed = 0;
   for (const long long id : ids) {
@@ -1118,9 +1307,8 @@ int Controller::removeHistoryRecords(const std::vector<long long> &ids) {
   return removed;
 }
 
-void Controller::playTrack(const Song &song,
-                          const std::vector<Song> &tracks,
-                          PlaybackCollection context) {
+void Controller::playTrack(const Song &song, const std::vector<Song> &tracks,
+                           PlaybackCollection context) {
   if (tracks.empty() || !context.valid()) {
     // Nothing to snapshot: play the single song, but claim no context that
     // could not describe a sequence.
@@ -1152,6 +1340,28 @@ void Controller::playTrackAt(const std::vector<Song> &tracks, int index,
   PlaybackSession session;
   session.context = std::move(context);
   session.sequence = tracks;
+  // Resolve every provider-backed entry immediately before it enters MPD.
+  // Agent search may have happened seconds ago, and History deliberately
+  // stores no authenticated URL at all.
+  for (Song &candidate : session.sequence) {
+    if (candidate.source_id.empty() || candidate.source_track_id.empty())
+      continue;
+    streaming::Track track;
+    track.provider_id = candidate.source_id;
+    track.track_id = candidate.source_track_id;
+    track.title = candidate.title;
+    track.artist = candidate.artist;
+    track.album = candidate.album;
+    track.duration_seconds = candidate.duration_seconds;
+    track.live = candidate.is_live_stream;
+    const auto resolved = streaming_.resolve(track);
+    if (!resolved) {
+      toast("Cannot resolve " + candidate.displayTitle() + ": " +
+            resolved.error().message);
+      return;
+    }
+    candidate.uri = resolved.value().uri;
+  }
   assignOccurrenceCounters(session.sequence);
   session.occurrence = start;
   const Song &row = session.sequence[static_cast<std::size_t>(start)];
@@ -1178,7 +1388,6 @@ void Controller::playTrackAt(const std::vector<Song> &tracks, int index,
   refreshQueue();
   refreshPlayer();
 }
-
 
 void Controller::reportResult(bool success, std::string_view success_message) {
   if (!success) {

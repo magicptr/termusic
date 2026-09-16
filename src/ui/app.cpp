@@ -5,26 +5,26 @@
 #include <algorithm>
 #include <cctype>
 #include <chrono>
-#include <limits>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
-#include <thread>
 #include <ctime>
 #include <exception>
 #include <filesystem>
-#include <functional>
 #include <fstream>
+#include <functional>
 #include <iostream>
 #include <istream>
+#include <iterator>
+#include <limits>
 #include <map>
 #include <ostream>
 #include <sstream>
+#include <thread>
 #include <utility>
 
+#include <fcntl.h>
 #include <sys/ioctl.h>
-#include <fcntl.h>
-#include <fcntl.h>
 #include <unistd.h>
 
 #include <ftxui/component/component_base.hpp>
@@ -89,8 +89,8 @@ Application::Application(AppState &state, Controller &controller,
                          ThemeRegistry &themes,
                          extensions::ExtensionRegistry &extensions)
     : state_(state), controller_(controller), backend_(backend),
-      analyzer_(analyzer), themes_(themes),
-      extensions_(extensions), theme_(themes.resolve(controller.config().theme_name)) {
+      analyzer_(analyzer), themes_(themes), extensions_(extensions),
+      theme_(themes.resolve(controller.config().theme_name)) {
   page_index_ = pageIndex(state_.page);
   configureKeymap();
   // Startup consistency: the Tree cursor and the Track Buffer both start on the
@@ -100,7 +100,8 @@ Application::Application(AppState &state, Controller &controller,
   active_playlist_name_.clear();
   active_playlist_index_ = -1;
   controller_.selectDatabase();
-  for (std::size_t index = 0; index < workspace_tree_.visible().size(); ++index) {
+  for (std::size_t index = 0; index < workspace_tree_.visible().size();
+       ++index) {
     if (workspace_tree_.visible()[index].type != TreeNodeType::Database)
       continue;
     workspace_tree_.setCursor(static_cast<int>(index));
@@ -136,11 +137,10 @@ Application::Application(AppState &state, Controller &controller,
   core_update_database_ = [this] {
     controller_.execute(Action::UpdateDatabase);
   };
-  core_config_path_ = [this] {
-    return controller_.configPath().string();
-  };
+  core_config_path_ = [this] { return controller_.configPath().string(); };
   core_content_focused_ = [this] {
-    return workspace_pane_ == WorkspacePane::TrackList && !overlayOwnsKeyboard();
+    return workspace_pane_ == WorkspacePane::TrackList &&
+           !overlayOwnsKeyboard();
   };
   core_transient_message_ = [this]() -> const std::string & {
     return visual_message_;
@@ -196,7 +196,7 @@ Application::~Application() { stopWorkers(); }
 
 void Application::printDiagnostics() const {
   // Terminal geometry as the kernel reports it.
-  struct winsize size {};
+  struct winsize size{};
   const bool have_size =
       ioctl(STDOUT_FILENO, TIOCGWINSZ, &size) == 0 && size.ws_col > 0;
   std::fprintf(stderr, "termusic diagnostics\n");
@@ -334,9 +334,9 @@ void Application::runScriptLine(const std::string &raw) {
       backend_workers_started_ = true;
     }
     const double seconds = words.size() > 1 ? std::stod(words[1]) : 0.0;
-    const auto until = std::chrono::steady_clock::now() +
-                       std::chrono::milliseconds(
-                           static_cast<long long>(seconds * 1000.0));
+    const auto until =
+        std::chrono::steady_clock::now() +
+        std::chrono::milliseconds(static_cast<long long>(seconds * 1000.0));
     while (std::chrono::steady_clock::now() < until)
       std::this_thread::sleep_for(std::chrono::milliseconds(20));
   } else if (command == "resize") {
@@ -350,7 +350,7 @@ void Application::runScriptLine(const std::string &raw) {
     }
   } else if (command == "load") {
     controller_.initialize();
-  last_reconnect_ = std::chrono::steady_clock::now();
+    last_reconnect_ = std::chrono::steady_clock::now();
     // One attempt at load, then the retry policy takes over: without this the
     // first tick would immediately try again.
     last_reconnect_ = std::chrono::steady_clock::now();
@@ -385,8 +385,8 @@ void Application::runScriptLine(const std::string &raw) {
   } else if (command == "expect" || command == "expect-absent") {
     const std::string needle = tail(1);
     const auto rows = scriptFrame();
-    const bool found = std::any_of(
-        rows.begin(), rows.end(), [&](const std::string &row) {
+    const bool found =
+        std::any_of(rows.begin(), rows.end(), [&](const std::string &row) {
           return row.find(needle) != std::string::npos;
         });
     if (found != (command == "expect"))
@@ -710,7 +710,8 @@ void Application::buildComponents() {
         entry = entry | bgcolor(theme_.hover_bg);
       return entry | color(theme_.text);
     };
-    return Button(std::move(label), [this, action] { dispatch(action); }, option);
+    return Button(
+        std::move(label), [this, action] { dispatch(action); }, option);
   };
   previous_button_ = stepButton("⏮", Action::Previous);
   play_button_ = Button(
@@ -722,7 +723,8 @@ void Application::buildComponents() {
           // magenta while a track is playing. One cell cannot draw a 1 px
           // ring, so the box is three rows tall.
           const bool playing = state_.player.state == PlaybackState::Playing;
-          const Color ring = playing ? theme_.accent_primary : theme_.border_dim;
+          const Color ring =
+              playing ? theme_.accent_primary : theme_.border_dim;
           const std::string inner = " " + state.label + " ";
           const int box_width = util::displayWidth(inner) + 2;
           return vbox({
@@ -786,6 +788,12 @@ void Application::buildComponents() {
     };
     search_input_ = Input(&search_buffer_, search_option);
   }
+  {
+    InputOption agent_option;
+    agent_option.placeholder = "e.g. play some jazz";
+    agent_option.multiline = false;
+    agent_input_ = Input(&agent_prompt_text_, agent_option);
+  }
   auto target_option = styledMenu(theme_);
   target_option.on_enter = [this] { confirmModal(); };
   playlist_target_menu_ =
@@ -815,10 +823,9 @@ void Application::configureVisualizer() {
     visualizer_->reset();
   if (state_.demo) {
     // Reference mode: keep the fixed reference shape for reproducible frames.
-    loadReferenceSpectrum(
-        state_.visualizer,
-        static_cast<std::size_t>(
-            std::max(8, controller_.config().visualizer_bar_density)));
+    loadReferenceSpectrum(state_.visualizer,
+                          static_cast<std::size_t>(std::max(
+                              8, controller_.config().visualizer_bar_density)));
     return;
   }
   const Config &config = controller_.config();
@@ -854,17 +861,17 @@ void Application::startTicker() {
   // repainting it 30 times a second is exactly what makes a terminal IME's
   // composition flicker. The fast rate is therefore suspended for as long as
   // the box is open; closing it brings the animation straight back.
-  ticker_fast_.store(
-      !search_prompt_ &&
-      (state_.player.state == PlaybackState::Playing || state_.demo ||
-       ui_slider_test_ || motion_test_ || state_.visualizer.data_available));
+  ticker_fast_.store(!search_prompt_ &&
+                     (state_.player.state == PlaybackState::Playing ||
+                      state_.demo || ui_slider_test_ || motion_test_ ||
+                      state_.visualizer.data_available));
   ticker_thread_ = std::jthread([this](std::stop_token stop) {
     std::unique_lock lock(ticker_mutex_);
     while (!stop.stop_requested()) {
       // Live spectrum and explicit diagnostic animations use the fast rate;
       // an unavailable FIFO must not keep an idle UI spinning at 30 FPS.
-      const auto interval =
-          std::chrono::milliseconds(ticker_fast_.load() ? 33 : 250);
+      const auto interval = std::chrono::milliseconds(
+          ticker_fast_.load() ? ticker_fast_interval_ms_.load() : 250);
       ticker_wakeup_.wait_for(lock, stop, interval, [] { return false; });
       if (stop.stop_requested())
         break;
@@ -876,6 +883,8 @@ void Application::startTicker() {
 }
 
 void Application::requestWorkerStop() {
+  if (agent_thread_.joinable())
+    agent_thread_.request_stop();
   if (ticker_thread_.joinable())
     ticker_thread_.request_stop();
   ticker_wakeup_.notify_all();
@@ -889,6 +898,8 @@ void Application::stopWorkers() {
   requestWorkerStop();
   if (ticker_thread_.joinable())
     ticker_thread_.join();
+  if (agent_thread_.joinable())
+    agent_thread_.join();
   analyzer_.stop();
   backend_.stopEventLoop();
 }
@@ -954,9 +965,9 @@ Element Application::renderRoot() {
   // so a resize, maximise or restore is picked up without a restart and without
   // a special-case "too small" screen.
   const auto [live_width, live_height] = liveSize();
-  metrics_ = computeMetrics(live_width, live_height,
-                            controller_.config().transport_gap,
-                            bottomBoxVisible());
+  metrics_ =
+      computeMetrics(live_width, live_height,
+                     controller_.config().transport_gap, bottomBoxVisible());
 
   const auto now = std::chrono::steady_clock::now();
   updating_sliders_ = true;
@@ -999,17 +1010,18 @@ Element Application::renderRoot() {
       root_rows.push_back(renderBottomBox());
   }
 
-  Element base =
-      vbox(std::move(root_rows)) | bgcolor(theme_.background) | color(theme_.text);
+  Element base = vbox(std::move(root_rows)) | bgcolor(theme_.background) |
+                 color(theme_.text);
   if (toastVisible())
     base = dbox({std::move(base), renderToast()});
   if (modal_ != Modal::None)
     base = dbox({std::move(base), renderModal() | center | clear_under});
   if (help_visible_)
     base = dbox({std::move(base), renderHelpOverlay() | center | clear_under});
+  if (lyrics_visible_)
+    base = dbox({std::move(base), renderLyricsOverlay() | center | clear_under});
   return base;
 }
-
 
 namespace {
 
@@ -1049,8 +1061,8 @@ std::vector<float> fallbackSpectrum(int bands, double seconds) {
     for (const Cluster &cluster : kClusters) {
       const double d = (x - cluster.centre) / cluster.width;
       const double envelope = std::exp(-0.5 * d * d);
-      const double breathe =
-          0.75 + 0.25 * std::sin(seconds * cluster.rate + cluster.centre * 31.0);
+      const double breathe = 0.75 + 0.25 * std::sin(seconds * cluster.rate +
+                                                    cluster.centre * 31.0);
       value += cluster.gain * envelope * breathe;
     }
     out[static_cast<std::size_t>(index)] =
@@ -1066,7 +1078,8 @@ void Application::syncTreeFromPlaylists() {
   // playlists. Every entry gets a tree row.
   std::string signature;
   std::vector<std::pair<std::string, std::string>> entries;
-  for (std::size_t index = 0; index < state_.library.playlists.size(); ++index) {
+  for (std::size_t index = 0; index < state_.library.playlists.size();
+       ++index) {
     const std::string &name = state_.library.playlists[index];
     entries.emplace_back(name, name);
     signature += name;
@@ -1103,12 +1116,18 @@ void Application::activateTreeNode() {
     workspace_tree_.toggleCurrentGroup();
     return;
   }
+  const bool opening_agent = node->type == TreeNodeType::Agent;
   loadTreeNode();
   // Enter means "open this and work in it": the pane it just filled takes the
   // keyboard, and the tree stays one `h` away. Merely MOVING the cursor does
   // not do this -- see autoLoadTreeCursor().
   workspace_pane_ = WorkspacePane::TrackList;
   focusCurrentList();
+  if (opening_agent) {
+    agent_prompt_ = true;
+    agent_prompt_text_.clear();
+    visual_message_.clear();
+  }
 }
 
 /// Fills the right pane from the Tree cursor without touching the keyboard.
@@ -1116,8 +1135,7 @@ void Application::loadTreeNode() {
   const TreeNode *node = workspace_tree_.current();
   if (node == nullptr)
     return;
-  if (node->type != TreeNodeType::CoreSection &&
-      state_.page != Page::Library) {
+  if (node->type != TreeNodeType::CoreSection && state_.page != Page::Library) {
     // A `vault` collection is shown in the media workspace, so the page has to
     // follow: without this, opening one while `core` was displayed left the
     // config editor on screen and the tree and pane disagreed.
@@ -1144,6 +1162,22 @@ void Application::loadTreeNode() {
     active_playlist_name_.clear();
     active_playlist_index_ = -1;
     refreshHistoryView();
+    track_cursor_ = 0;
+    track_scroll_ = 0;
+    return;
+  }
+  if (node->type == TreeNodeType::Streams) {
+    active_collection_ = ActiveCollection::Streams;
+    active_playlist_name_.clear();
+    active_playlist_index_ = -1;
+    track_cursor_ = 0;
+    track_scroll_ = 0;
+    return;
+  }
+  if (node->type == TreeNodeType::Agent) {
+    active_collection_ = ActiveCollection::Agent;
+    active_playlist_name_.clear();
+    active_playlist_index_ = -1;
     track_cursor_ = 0;
     track_scroll_ = 0;
     return;
@@ -1242,6 +1276,8 @@ void Application::configureKeymap() {
 }
 
 std::vector<KeyContext> Application::currentKeyContexts() const {
+  if (lyrics_visible_)
+    return {KeyContext::Global};
   if (state_.presentation == PresentationMode::ImmersiveNowPlaying)
     return {KeyContext::Immersive, KeyContext::Global};
   switch (state_.page) {
@@ -1285,9 +1321,9 @@ std::string Application::keyHint(const std::vector<KeyContext> &chain,
   if (!token.empty())
     tokens.push_back(token);
   if (tokens.size() > 1) {
-    const bool repeated = std::all_of(
-        tokens.begin(), tokens.end(),
-        [&](const std::string &t) { return t == tokens.front(); });
+    const bool repeated =
+        std::all_of(tokens.begin(), tokens.end(),
+                    [&](const std::string &t) { return t == tokens.front(); });
     if (repeated) {
       std::string joined;
       for (const std::string &t : tokens)
@@ -1335,6 +1371,11 @@ bool Application::performKeymapAction(Action action) {
             ? PresentationMode::Normal
             : PresentationMode::ImmersiveNowPlaying;
     return true;
+  case Action::ToggleLyrics:
+    lyrics_visible_ = !lyrics_visible_;
+    if (lyrics_visible_)
+      refreshLyrics();
+    return true;
   case Action::FocusTree:
     workspace_pane_ = WorkspacePane::Tree;
     focusCurrentList();
@@ -1362,8 +1403,8 @@ bool Application::performKeymapAction(Action action) {
   case Action::MoveToLast:
     if (on_tree) {
       workspace_tree_.toLast();
-      tree_scroll_ =
-          std::max(0, static_cast<int>(workspace_tree_.visible().size()) - page_rows);
+      tree_scroll_ = std::max(
+          0, static_cast<int>(workspace_tree_.visible().size()) - page_rows);
       autoLoadTreeCursor();
     } else {
       track_cursor_ = std::numeric_limits<int>::max();
@@ -1409,7 +1450,8 @@ bool Application::performKeymapAction(Action action) {
     // the PANE -- but only when the pane really has it: with the tree focused,
     // Enter is the tree's own key (open a collection, toggle a folder), exactly
     // as it is on the vault page.
-    if (state_.page == Page::Settings && workspace_pane_ == WorkspacePane::TrackList) {
+    if (state_.page == Page::Settings &&
+        workspace_pane_ == WorkspacePane::TrackList) {
       // A settings module owns Enter whenever its pane holds the keyboard:
       // the shared list engine turns it into "flip / edit / run / cycle".
       if (workspace_pane_ == WorkspacePane::TrackList && !keybindingsOpen()) {
@@ -1450,6 +1492,14 @@ bool Application::performKeymapAction(Action action) {
     }
     return true;
   case Action::CreatePlaylist:
+    if ((on_tree && currentTreeNode() != nullptr &&
+         currentTreeNode()->type == TreeNodeType::Streams) ||
+        (!on_tree && active_collection_ == ActiveCollection::Streams)) {
+      stream_prompt_ = true;
+      stream_prompt_text_.clear();
+      visual_message_.clear();
+      return true;
+    }
     playlist_prompt_ = true;
     playlist_prompt_text_.clear();
     visual_message_.clear();
@@ -1461,14 +1511,15 @@ bool Application::performKeymapAction(Action action) {
   case Action::RenamePlaylist: {
     const int index = treePlaylistIndex();
     if (index <= 0) {
-      visual_message_ = index == 0 ? "Default cannot be renamed"
-                                   : "Not a saved playlist";
+      visual_message_ =
+          index == 0 ? "Default cannot be renamed" : "Not a saved playlist";
       visual_message_error_ = true;
       return true;
     }
     playlist_prompt_ = true;
     playlist_prompt_rename_ = true;
-    rename_original_ = state_.library.playlists[static_cast<std::size_t>(index)];
+    rename_original_ =
+        state_.library.playlists[static_cast<std::size_t>(index)];
     playlist_prompt_text_ = rename_original_;
     visual_message_.clear();
     return true;
@@ -1478,8 +1529,8 @@ bool Application::performKeymapAction(Action action) {
     // with DeleteCurrent from the Track list.
     const int index = treePlaylistIndex();
     if (index <= 0) {
-      visual_message_ = index == 0 ? "Default cannot be deleted"
-                                   : "Not a saved playlist";
+      visual_message_ =
+          index == 0 ? "Default cannot be deleted" : "Not a saved playlist";
       visual_message_error_ = true;
       return true;
     }
@@ -1536,6 +1587,12 @@ bool Application::performKeymapAction(Action action) {
   case Action::Search:
   case Action::OpenSearch:
     // One action, two panes: the box searches whatever the focused pane shows.
+    if (active_collection_ == ActiveCollection::Agent) {
+      agent_prompt_ = true;
+      agent_prompt_text_.clear();
+      visual_message_.clear();
+      return true;
+    }
     openSearchPrompt();
     return true;
   case Action::NextMatch:
@@ -1655,7 +1712,8 @@ bool Application::isQuitKey(const Event &event) const {
   // action in step, and only an exact single-token binding counts: a chord
   // ending in the same key still goes through the prefix machinery.
   for (const KeyContext context : currentKeyContexts()) {
-    for (const std::string &sequence : keymap_.bindingsFor(context, Action::Quit)) {
+    for (const std::string &sequence :
+         keymap_.bindingsFor(context, Action::Quit)) {
       if (sequence == token)
         return true;
     }
@@ -1711,8 +1769,7 @@ bool Application::handleGlobalKey(Event event) {
   // table (which owns a row list of its own) keep them.
   if (state_.page == Page::Settings &&
       state_.presentation != PresentationMode::ImmersiveNowPlaying &&
-      workspace_pane_ == WorkspacePane::TrackList &&
-      !keybindingsOpen()) {
+      workspace_pane_ == WorkspacePane::TrackList && !keybindingsOpen()) {
     const std::string token = normalizeKey(event, false);
     if (coreEditing())
       return false;
@@ -1738,8 +1795,9 @@ bool Application::handleGlobalKey(Event event) {
       delete_playlist_pending_ = false;
       const int index = treePlaylistIndex();
       const bool was_active =
-          index >= 0 && active_playlist_name_ ==
-                            state_.library.playlists[static_cast<std::size_t>(index)];
+          index >= 0 &&
+          active_playlist_name_ ==
+              state_.library.playlists[static_cast<std::size_t>(index)];
       if (index >= 0) {
         controller_.selectPlaylist(index);
         if (controller_.deleteCurrentPlaylist()) {
@@ -1753,7 +1811,8 @@ bool Application::handleGlobalKey(Event event) {
             controller_.selectDatabase();
             for (std::size_t at = 0; at < workspace_tree_.visible().size();
                  ++at) {
-              if (workspace_tree_.visible()[at].type == TreeNodeType::Database) {
+              if (workspace_tree_.visible()[at].type ==
+                  TreeNodeType::Database) {
                 workspace_tree_.setCursor(static_cast<int>(at));
                 break;
               }
@@ -1794,6 +1853,10 @@ bool Application::handleGlobalKey(Event event) {
   // H/L/n/N/a/v/y/p are literal characters while a prompt is open.
   if (playlist_prompt_)
     return handlePlaylistPromptKey(event);
+  if (stream_prompt_)
+    return handleStreamPromptKey(event);
+  if (agent_prompt_)
+    return handleAgentPromptKey(event);
   if (search_prompt_)
     return handleSearchPromptKey(event);
 
@@ -1823,10 +1886,18 @@ bool Application::visualActive() const {
 }
 
 const std::vector<Song> &Application::activeTracks() const {
-  // History keeps its own buffer so a database refresh can never clobber it;
-  // every other collection is served by library.songs.
-  return active_collection_ == ActiveCollection::History ? history_songs_
-                                                         : state_.library.songs;
+  switch (active_collection_) {
+  case ActiveCollection::History:
+    return history_songs_;
+  case ActiveCollection::Streams:
+    return controller_.streamSongs();
+  case ActiveCollection::Agent:
+    return agent_songs_;
+  case ActiveCollection::Library:
+  case ActiveCollection::Playlist:
+    return state_.library.songs;
+  }
+  return state_.library.songs;
 }
 
 std::string Application::collectionLabel() const {
@@ -1835,6 +1906,15 @@ std::string Application::collectionLabel() const {
     return "Library";
   case ActiveCollection::History:
     return "History";
+  case ActiveCollection::Streams:
+    return "Streams";
+  case ActiveCollection::Agent: {
+    if (agent_query_.empty())
+      return "Agent";
+    return "Agent — " + agent_query_ + " (" +
+           std::to_string(agent_local_matches_) + " local, " +
+           std::to_string(agent_stream_matches_) + " stream)";
+  }
   case ActiveCollection::Playlist:
     break;
   }
@@ -1847,7 +1927,8 @@ bool Application::overlayOwnsKeyboard() const {
   // focused behind it. A key CAPTURE is not an overlay -- the table is the
   // control taking the keys, and it shows the recording state itself.
   const core::KeybindingsSection *table = keybindings();
-  return search_prompt_ || playlist_prompt_ || delete_playlist_pending_ ||
+  return search_prompt_ || playlist_prompt_ || stream_prompt_ || agent_prompt_ ||
+         delete_playlist_pending_ ||
          (table != nullptr && table->resetPending());
 }
 
@@ -1875,6 +1956,12 @@ PlaybackCollection Application::browsedPlaybackCollection() const {
   case ActiveCollection::History:
     browsed.kind = PlaybackCollection::Kind::History;
     break;
+  case ActiveCollection::Streams:
+    browsed.kind = PlaybackCollection::Kind::Streams;
+    break;
+  case ActiveCollection::Agent:
+    browsed.kind = PlaybackCollection::Kind::Agent;
+    break;
   case ActiveCollection::Playlist:
     browsed.kind = PlaybackCollection::Kind::Playlist;
     browsed.name = active_playlist_name_;
@@ -1886,6 +1973,10 @@ PlaybackCollection Application::browsedPlaybackCollection() const {
 std::string Application::readOnlyReason() const {
   if (active_collection_ == ActiveCollection::History)
     return "History is generated from playback";
+  if (active_collection_ == ActiveCollection::Streams)
+    return "Streams can be removed with dd";
+  if (active_collection_ == ActiveCollection::Agent)
+    return "Agent results are read-only";
   if (active_collection_ == ActiveCollection::Playlist &&
       active_playlist_index_ == 0)
     return "Default mirrors the media library";
@@ -1911,8 +2002,8 @@ void Application::enterVisualSelection() {
   // pane, so the cursor cannot wander into the Tree mid-selection.
   workspace_pane_ = WorkspacePane::TrackList;
   vim_mode_ = VimMode::Visual;
-  visual_anchor_ = std::clamp(track_cursor_, 0,
-                              static_cast<int>(songs.size()) - 1);
+  visual_anchor_ =
+      std::clamp(track_cursor_, 0, static_cast<int>(songs.size()) - 1);
   visual_list_size_ = songs.size();
   visual_message_.clear();
 }
@@ -1941,8 +2032,8 @@ void Application::yankVisualSelection() {
   const std::size_t count = refs.size();
   state_.music_register.set(std::move(refs));
   cancelVisualSelection();
-  visual_message_ = std::to_string(count) +
-                    (count == 1 ? " track yanked" : " tracks yanked");
+  visual_message_ =
+      std::to_string(count) + (count == 1 ? " track yanked" : " tracks yanked");
 }
 
 void Application::yankCurrentTrack() {
@@ -1951,12 +2042,13 @@ void Application::yankCurrentTrack() {
     return;
   const int index =
       std::clamp(track_cursor_, 0, static_cast<int>(songs.size()) - 1);
-  state_.music_register.set({trackRefFromSong(songs[static_cast<std::size_t>(index)])});
+  state_.music_register.set(
+      {trackRefFromSong(songs[static_cast<std::size_t>(index)])});
   visual_message_ = "1 track yanked";
 }
 
 bool Application::textEntryActive() const {
-  return playlist_prompt_ || search_prompt_;
+  return playlist_prompt_ || stream_prompt_ || agent_prompt_ || search_prompt_;
 }
 
 bool Application::songMatches(const Song &song,
@@ -2129,6 +2221,8 @@ void Application::autoLoadTreeCursor() {
   switch (node->type) {
   case TreeNodeType::Database:
   case TreeNodeType::History:
+  case TreeNodeType::Streams:
+  case TreeNodeType::Agent:
   case TreeNodeType::Playlist:
   case TreeNodeType::CoreSection:
     loadTreeNode();
@@ -2144,7 +2238,8 @@ int Application::treePlaylistIndex() const {
   const TreeNode *node = workspace_tree_.current();
   if (node == nullptr || node->type != TreeNodeType::Playlist)
     return -1;
-  for (std::size_t index = 0; index < state_.library.playlists.size(); ++index) {
+  for (std::size_t index = 0; index < state_.library.playlists.size();
+       ++index) {
     if (state_.library.playlists[index] == node->label)
       return static_cast<int>(index);
   }
@@ -2187,6 +2282,13 @@ int Application::deleteRange(int lo, int hi) {
 }
 
 void Application::deleteVisualSelection() {
+  if (active_collection_ == ActiveCollection::Streams) {
+    int lo = 0;
+    int hi = 0;
+    visualRange(lo, hi);
+    deleteStreamRows(lo, hi);
+    return;
+  }
   if (active_collection_ == ActiveCollection::History) {
     int lo = 0;
     int hi = 0;
@@ -2239,7 +2341,8 @@ void Application::deleteHistoryRows(int lo, int hi) {
   }
   const int removed = controller_.removeHistoryRecords(ids);
   if (removed < 0) {
-    visual_message_ = "Removed from the view, but the history file could not be written";
+    visual_message_ =
+        "Removed from the view, but the history file could not be written";
     visual_message_error_ = true;
   } else if (removed == 0) {
     visual_message_ = "Nothing to remove";
@@ -2250,9 +2353,9 @@ void Application::deleteHistoryRows(int lo, int hi) {
   // The view is rebuilt from the store, so the cursor is re-clamped against the
   // rows that actually survived.
   refreshHistoryView();
-  track_cursor_ = std::clamp(
-      track_cursor_, 0,
-      std::max(0, static_cast<int>(activeTracks().size()) - 1));
+  track_cursor_ =
+      std::clamp(track_cursor_, 0,
+                 std::max(0, static_cast<int>(activeTracks().size()) - 1));
   visual_message_error_ = removed < 0;
   screen_.PostEvent(Event::Custom);
 }
@@ -2268,16 +2371,198 @@ void Application::deleteCurrentEntry() {
     deleteHistoryRows(track_cursor_, track_cursor_);
     return;
   }
+  if (active_collection_ == ActiveCollection::Streams) {
+    deleteStreamRows(track_cursor_, track_cursor_);
+    return;
+  }
   if (!collectionWritable()) {
     visual_message_ = readOnlyReason();
     screen_.PostEvent(Event::Custom);
     return;
   }
-  const int index = std::clamp(track_cursor_, 0,
-                               static_cast<int>(activeTracks().size()) - 1);
+  const int index =
+      std::clamp(track_cursor_, 0, static_cast<int>(activeTracks().size()) - 1);
   const int removed = deleteRange(index, index);
   visual_message_ = removed > 0 ? "Removed 1 track" : "Failed to remove track";
   screen_.PostEvent(Event::Custom);
+}
+
+void Application::deleteStreamRows(int lo, int hi) {
+  const int count = static_cast<int>(controller_.streamSongs().size());
+  if (count == 0)
+    return;
+  lo = std::clamp(lo, 0, count - 1);
+  hi = std::clamp(hi, 0, count - 1);
+  if (hi < lo)
+    std::swap(lo, hi);
+  std::vector<std::size_t> positions;
+  positions.reserve(static_cast<std::size_t>(hi - lo + 1));
+  for (int index = lo; index <= hi; ++index)
+    positions.push_back(static_cast<std::size_t>(index));
+  cancelVisualSelection();
+  std::string error;
+  const int removed = controller_.removeStreamEntries(positions, &error);
+  if (removed < 0) {
+    visual_message_ = "Streams changed in memory but were not saved: " + error;
+    visual_message_error_ = true;
+  } else {
+    visual_message_ = "Removed " + std::to_string(removed) +
+                      (removed == 1 ? " stream" : " streams");
+    visual_message_error_ = false;
+  }
+  track_cursor_ = std::clamp(
+      lo, 0, std::max(0, static_cast<int>(activeTracks().size()) - 1));
+  screen_.PostEvent(Event::Custom);
+}
+
+bool Application::handleStreamPromptKey(const Event &event) {
+  if (event == Event::Escape) {
+    stream_prompt_ = false;
+    stream_prompt_text_.clear();
+    visual_message_ = "Add stream cancelled";
+    screen_.PostEvent(Event::Custom);
+    return true;
+  }
+  if (event == Event::Return) {
+    std::string error;
+    if (controller_.addDirectStream(stream_prompt_text_, &error)) {
+      stream_prompt_ = false;
+      stream_prompt_text_.clear();
+      visual_message_ = "Stream added";
+      visual_message_error_ = false;
+      track_cursor_ =
+          std::max(0, static_cast<int>(controller_.streamSongs().size()) - 1);
+    } else {
+      visual_message_ = error;
+      visual_message_error_ = true;
+    }
+    screen_.PostEvent(Event::Custom);
+    return true;
+  }
+  if (event == Event::Backspace) {
+    if (!stream_prompt_text_.empty())
+      stream_prompt_text_.pop_back();
+    visual_message_error_ = false;
+    screen_.PostEvent(Event::Custom);
+    return true;
+  }
+  if (event.is_character()) {
+    const std::string typed = event.character();
+    if (!typed.empty() && static_cast<unsigned char>(typed.front()) >= 0x20U)
+      stream_prompt_text_ += typed;
+    visual_message_error_ = false;
+    screen_.PostEvent(Event::Custom);
+  }
+  return true;
+}
+
+void Application::runAgentQuery() {
+  if (agent_prompt_text_.empty()) {
+    visual_message_ = "Tell Agent what you want to hear";
+    visual_message_error_ = true;
+    return;
+  }
+  const std::string prompt = agent_prompt_text_;
+  agent::QueryResult result = controller_.queryAgent(prompt);
+  const bool remote_search = controller_.hasSearchableStreamingProviders() &&
+                             !result.search_text.empty() &&
+                             result.intent.scope != agent::SourceScope::LocalOnly;
+  if (agent_thread_.joinable()) {
+    agent_thread_.request_stop();
+    agent_thread_.join();
+  }
+  const std::size_t generation = ++agent_request_generation_;
+
+  std::vector<Song> local;
+  std::vector<Song> streams;
+  for (const agent::Candidate &candidate : result.candidates) {
+    (candidate.source == agent::MusicSource::Local ? local : streams)
+        .push_back(candidate.song);
+  }
+  applyAgentResult(result, !remote_search);
+  if (!remote_search)
+    return;
+
+  visual_message_ = "Agent is searching streaming providers";
+  visual_message_error_ = false;
+  agent_thread_ = std::jthread(
+      [this, prompt, generation, local = std::move(local),
+       streams = std::move(streams)](std::stop_token stop) mutable {
+        agent::StreamingCatalogResult catalog =
+            controller_.queryAgentStreamingCatalog(prompt, stop);
+        if (stop.stop_requested())
+          return;
+        streams.insert(streams.end(),
+                       std::make_move_iterator(catalog.songs.begin()),
+                       std::make_move_iterator(catalog.songs.end()));
+        agent::QueryResult merged =
+            agent::MusicAgent{}.query(prompt, local, streams);
+        screen_.Post([this, generation, merged = std::move(merged),
+                      warnings = std::move(catalog.warnings)]() mutable {
+          if (quitting_.load() || generation != agent_request_generation_)
+            return;
+          applyAgentResult(std::move(merged), true);
+          if (!warnings.empty()) {
+            visual_message_ += " (" + std::to_string(warnings.size()) +
+                               " provider warnings)";
+          }
+          screen_.PostEvent(Event::Custom);
+        });
+      });
+}
+
+void Application::applyAgentResult(agent::QueryResult result,
+                                   bool allow_autoplay) {
+  agent_query_ = result.prompt;
+  agent_local_matches_ = result.local_matches;
+  agent_stream_matches_ = result.stream_matches;
+  agent_songs_.clear();
+  agent_sources_.clear();
+  agent_songs_.reserve(result.candidates.size());
+  agent_sources_.reserve(result.candidates.size());
+  for (agent::Candidate &candidate : result.candidates) {
+    agent_songs_.push_back(std::move(candidate.song));
+    agent_sources_.push_back(candidate.source);
+  }
+  agent_prompt_ = false;
+  track_cursor_ = 0;
+  track_scroll_ = 0;
+  workspace_pane_ = WorkspacePane::TrackList;
+  if (allow_autoplay && result.intent.autoplay && !agent_songs_.empty() &&
+      active_collection_ == ActiveCollection::Agent) {
+    PlaybackCollection context;
+    context.kind = PlaybackCollection::Kind::Agent;
+    controller_.playTrackAt(agent_songs_, 0, std::move(context));
+  }
+  visual_message_error_ = agent_songs_.empty();
+  visual_message_ = agent_songs_.empty()
+                        ? "Agent found no matching music"
+                        : (allow_autoplay && result.intent.autoplay
+                               ? "Agent selected " +
+                                     agent_songs_.front().displayTitle()
+                               : "Agent found " +
+                                     std::to_string(agent_songs_.size()) +
+                                     " playable tracks");
+  screen_.PostEvent(Event::Custom);
+}
+
+bool Application::handleAgentPromptKey(const Event &event) {
+  if (event == Event::Escape) {
+    agent_prompt_ = false;
+    agent_prompt_text_.clear();
+    visual_message_ = "Agent request cancelled";
+    visual_message_error_ = false;
+    screen_.PostEvent(Event::Custom);
+    return true;
+  }
+  if (event == Event::Return) {
+    runAgentQuery();
+    return true;
+  }
+  (void)agent_input_->OnEvent(event);
+  visual_message_error_ = false;
+  screen_.PostEvent(Event::Custom);
+  return true;
 }
 
 bool Application::handlePlaylistPromptKey(const Event &event) {
@@ -2326,8 +2611,8 @@ void Application::commitPlaylistPrompt() {
   if (renaming) {
     const int index = treePlaylistIndex();
     if (index <= 0) {
-      visual_message_ = index == 0 ? "Default cannot be renamed"
-                                   : "Not a saved playlist";
+      visual_message_ =
+          index == 0 ? "Default cannot be renamed" : "Not a saved playlist";
       visual_message_error_ = true;
       screen_.PostEvent(Event::Custom);
       return;
@@ -2380,10 +2665,9 @@ void Application::commitPlaylistPrompt() {
   int added = 0;
   if (queued > 0)
     added = controller_.pasteRegisterToPlaylist(name);
-  visual_message_ =
-      added > 0 ? "Created \"" + name + "\" with " + std::to_string(added) +
-                      " tracks"
-                : "Created playlist \"" + name + "\"";
+  visual_message_ = added > 0 ? "Created \"" + name + "\" with " +
+                                    std::to_string(added) + " tracks"
+                              : "Created playlist \"" + name + "\"";
   screen_.PostEvent(Event::Custom);
 }
 
@@ -2521,10 +2805,10 @@ Element Application::renderTreePane() {
     tree_scroll_ = cursor;
   if (cursor >= tree_scroll_ + viewport)
     tree_scroll_ = cursor - viewport + 1;
-  const int last = std::min(static_cast<int>(nodes.size()),
-                            tree_scroll_ + viewport);
-  tree_scroll_ = std::clamp(tree_scroll_, 0,
-                            std::max(0, static_cast<int>(nodes.size()) - viewport));
+  const int last =
+      std::min(static_cast<int>(nodes.size()), tree_scroll_ + viewport);
+  tree_scroll_ = std::clamp(
+      tree_scroll_, 0, std::max(0, static_cast<int>(nodes.size()) - viewport));
 
   Elements rows;
   for (int index = tree_scroll_; index < last; ++index) {
@@ -2536,12 +2820,15 @@ Element Application::renderTreePane() {
         node.type == TreeNodeType::Playlist &&
         active_collection_ == ActiveCollection::Playlist &&
         active_playlist_name_ == node.id;
-    const bool is_active =
-        (node.type == TreeNodeType::History &&
-         active_collection_ == ActiveCollection::History) ||
-        (node.type == TreeNodeType::Database &&
-         active_collection_ == ActiveCollection::Library) ||
-        is_saved_playlist_active;
+    const bool is_active = (node.type == TreeNodeType::History &&
+                            active_collection_ == ActiveCollection::History) ||
+                           (node.type == TreeNodeType::Streams &&
+                            active_collection_ == ActiveCollection::Streams) ||
+                           (node.type == TreeNodeType::Agent &&
+                            active_collection_ == ActiveCollection::Agent) ||
+                           (node.type == TreeNodeType::Database &&
+                            active_collection_ == ActiveCollection::Library) ||
+                           is_saved_playlist_active;
 
     // Three different states, three different colours: the active collection
     // is a restrained cyan dot, the Tree cursor is a pink row, and everything
@@ -2575,6 +2862,12 @@ Element Application::renderTreePane() {
       break;
     case TreeNodeType::History:
       node_icon = Icon::History;
+      break;
+    case TreeNodeType::Streams:
+      node_icon = Icon::Stream;
+      break;
+    case TreeNodeType::Agent:
+      node_icon = Icon::Agent;
       break;
     case TreeNodeType::Playlist:
       // A saved playlist: a list icon. Every playlist row IS a saved playlist,
@@ -2612,7 +2905,7 @@ Element Application::renderTreePane() {
       icon_color = theme_.weak_text;
     } else if (node.type == TreeNodeType::CoreSection) {
       icon_color = node.core_kind == CoreSectionKind::Information
-                       ? theme_.accent_purple  // Lavender: information
+                       ? theme_.accent_purple   // Lavender: information
                        : theme_.accent_primary; // Mauve: configurable
     } else {
       icon_color = directory ? theme_.weak_text : theme_.muted_text;
@@ -2708,6 +3001,12 @@ Element Application::renderSidebarPlayback() {
   case PlaybackCollection::Kind::History:
     context = "History";
     break;
+  case PlaybackCollection::Kind::Streams:
+    context = "Streams";
+    break;
+  case PlaybackCollection::Kind::Agent:
+    context = "Agent";
+    break;
   case PlaybackCollection::Kind::Playlist:
     context = controller_.playbackContext().name;
     break;
@@ -2733,16 +3032,16 @@ Element Application::renderSidebarPlayback() {
   candidates.push_back({song->displayArtist(), "weak_text:dim", 1,
                         text(" " + line(song->displayArtist())) | dim |
                             color(theme_.weak_text)});
-  candidates.push_back({song->displayTitle(), "text:bold", 3,
-                        text(" " + line(song->displayTitle())) | bold |
-                            color(theme_.text)});
+  candidates.push_back(
+      {song->displayTitle(), "text:bold", 3,
+       text(" " + line(song->displayTitle())) | bold | color(theme_.text)});
   if (!context.empty())
-    candidates.push_back({context, "accent_secondary:regular", 2,
-                          text(" " + line(context)) |
-                              color(theme_.accent_secondary)});
-  candidates.push_back({"NOW PLAYING", "accent_primary:bold", 4,
-                        text(" " + line("NOW PLAYING")) | bold |
-                            color(theme_.accent_primary)});
+    candidates.push_back(
+        {context, "accent_secondary:regular", 2,
+         text(" " + line(context)) | color(theme_.accent_secondary)});
+  candidates.push_back(
+      {"NOW PLAYING", "accent_primary:bold", 4,
+       text(" " + line("NOW PLAYING")) | bold | color(theme_.accent_primary)});
 
   std::vector<BlockLine> lines;
   for (BlockLine &candidate : candidates) {
@@ -2768,8 +3067,8 @@ Element Application::renderSidebarPlayback() {
   }
   // The reserved rows the block did not need stay blank, and NOW PLAYING ends
   // on the sidebar's last row: no gap above the block, no padding below it.
-  for (int index = static_cast<int>(lines.size());
-       index < side.playback_rows; ++index)
+  for (int index = static_cast<int>(lines.size()); index < side.playback_rows;
+       ++index)
     block.push_back(text(""));
   return vbox(std::move(block));
 }
@@ -2794,7 +3093,9 @@ Element Application::renderTrackBuffer() {
   const TrackColumns &columns = activeColumns();
 
   Song heading;
-  heading.title = "Title";
+  heading.title = active_collection_ == ActiveCollection::Agent
+                      ? "Source / Title"
+                      : "Title";
   heading.artist = "Artist";
   heading.album = "Album";
   heading.duration_seconds = -1.0;
@@ -2815,7 +3116,8 @@ Element Application::renderTrackBuffer() {
                  color(theme_.accent_primary));
   rows.push_back(text(songRow(heading, -1, inner, false)) |
                  color(theme_.header_text));
-  rows.push_back(text(util::repeat(inner, "\u2500")) | color(theme_.border_dim));
+  rows.push_back(text(util::repeat(inner, "\u2500")) |
+                 color(theme_.border_dim));
 
   if (view_size == 0) {
     track_row_boxes_.assign(0, Box{});
@@ -2823,7 +3125,13 @@ Element Application::renderTrackBuffer() {
     rows.push_back(text(""));
     // A query that matches nothing shows NO list at all: an empty state, not
     // the unrelated rows that happened to be there before.
-    rows.push_back(text(filtering ? "No matches." : "Collection is empty") |
+    const std::string empty =
+        active_collection_ == ActiveCollection::Agent && !filtering
+            ? (agent_query_.empty()
+                   ? "Ask Agent to find local and streaming music."
+                   : "Agent found no matching music.")
+            : (filtering ? "No matches." : "Collection is empty");
+    rows.push_back(text(empty) |
                    color(filtering ? theme_.error : theme_.muted_text));
   } else {
     cursor = std::clamp(cursor, 0, view_size - 1);
@@ -2858,8 +3166,8 @@ Element Application::renderTrackBuffer() {
     //                                               occurrence for a list)
     //
     // Matching on the URI alone is deliberately NOT enough: the same URI lives
-    // in Library, in `default` and in several playlists at once, and History can
-    // hold it twice -- so a URI match would mark rows that are not playing.
+    // in Library, in `default` and in several playlists at once, and History
+    // can hold it twice -- so a URI match would mark rows that are not playing.
     const int playing_index = currentPlayingRow();
 
     for (int row = 0; row < visible_rows; ++row) {
@@ -2881,23 +3189,31 @@ Element Application::renderTrackBuffer() {
       // The cursor row: the list's own cursor normally; while the box is open
       // the RESULT cursor, which is what the user is choosing between.
       const bool is_cursor =
-          filtering
-              ? position == cursor
-              : (index == track_cursor_ &&
-                 workspace_pane_ == WorkspacePane::TrackList);
+          filtering ? position == cursor
+                    : (index == track_cursor_ &&
+                       workspace_pane_ == WorkspacePane::TrackList);
       // On the cursor row every glyph goes Crust so the Mauve highlight stays
       // readable; the Sky marker is the one element that keeps its own colour,
       // which is what keeps "playing" visible while the cursor sits on it.
-      const Color title_fg =
-          is_cursor ? theme_.track_cursor_fg
-                    : (is_playing ? theme_.playing : theme_.text);
+      const Color title_fg = is_cursor
+                                 ? theme_.track_cursor_fg
+                                 : (is_playing ? theme_.playing : theme_.text);
       const Color secondary_fg =
           is_cursor ? theme_.track_cursor_fg : theme_.header_text;
       const Color muted_fg =
           is_cursor ? theme_.track_cursor_fg : theme_.muted_text;
       // Results are renumbered inside the filtered view; the complete list
       // keeps the ordinals it always had.
-      const SongRowParts parts = songRowParts(song, position + 1, columns);
+      Song display_song = song;
+      if (active_collection_ == ActiveCollection::Agent && index >= 0 &&
+          index < static_cast<int>(agent_sources_.size())) {
+        display_song.title =
+            "[" + std::string(agent::sourceLabel(
+                       agent_sources_[static_cast<std::size_t>(index)])) +
+            "] " + song.displayTitle();
+      }
+      const SongRowParts parts =
+          songRowParts(display_song, position + 1, columns);
       // Every cell is pinned to its exact column width. An hbox otherwise
       // redistributes space between flexible text nodes, which would silently
       // re-flow the columns; pinning keeps the row laid out exactly where the
@@ -3019,8 +3335,7 @@ Element Application::renderImmersiveNowPlaying() {
   // width: the Spectrum spreads across its container and centres itself inside
   // it. The grid air the old chunky styles were inset by would only shrink the
   // spectrum by a fifth of the screen.
-  center.push_back(
-      hbox({text(margin), renderImmersiveVisualizer(), filler()}));
+  center.push_back(hbox({text(margin), renderImmersiveVisualizer(), filler()}));
   center.push_back(blankRows(layout.visualizer_bottom_pad));
 
   return vbox({
@@ -3034,9 +3349,7 @@ Element Application::renderImmersiveNowPlaying() {
   });
 }
 
-int Application::coreSectionIndex() const {
-  return -1;
-}
+int Application::coreSectionIndex() const { return -1; }
 
 int Application::currentPlayingRow() const {
   return controller_.playingRow(browsedPlaybackCollection(), activeTracks());
@@ -3104,10 +3417,9 @@ bool Application::scriptKey(std::string_view token) {
     std::size_t offset = 0;
     while (offset <= token.size()) {
       const auto next = token.find(' ', offset);
-      const std::string_view piece =
-          token.substr(offset, next == std::string_view::npos
-                                   ? std::string_view::npos
-                                   : next - offset);
+      const std::string_view piece = token.substr(
+          offset, next == std::string_view::npos ? std::string_view::npos
+                                                 : next - offset);
       if (!piece.empty())
         handled = scriptKey(piece) || handled;
       if (next == std::string_view::npos)
@@ -3167,10 +3479,18 @@ std::vector<std::string> Application::scriptFrame() {
 std::string Application::scriptStateSummary() {
   const auto kind = [](PlaybackCollection::Kind k) {
     switch (k) {
-    case PlaybackCollection::Kind::None: return "none";
-    case PlaybackCollection::Kind::Library: return "library";
-    case PlaybackCollection::Kind::History: return "history";
-    case PlaybackCollection::Kind::Playlist: return "playlist";
+    case PlaybackCollection::Kind::None:
+      return "none";
+    case PlaybackCollection::Kind::Library:
+      return "library";
+    case PlaybackCollection::Kind::History:
+      return "history";
+    case PlaybackCollection::Kind::Streams:
+      return "streams";
+    case PlaybackCollection::Kind::Agent:
+      return "agent";
+    case PlaybackCollection::Kind::Playlist:
+      return "playlist";
     }
     return "?";
   };
@@ -3184,73 +3504,79 @@ std::string Application::scriptStateSummary() {
       << " context=" << kind(context.kind)
       << (context.name.empty() ? "" : ":" + context.name)
       << " rows=" << activeTracks().size() << " marker=" << marker
-      << " occ=" << session.occurrence
-      << " seq=" << session.sequence.size()
-      << " cursor=" << track_cursor_
+      << " occ=" << session.occurrence << " seq=" << session.sequence.size()
+      << " cursor="
+      << track_cursor_
       // The search box and its filtered view: `searchRows` is how many rows of
       // the RIGHT list matched, `searchCursor` the result cursor inside that
       // view, and `searchQuery` what is on the line. The list keeps reporting
       // its own `cursor` / `rows`, so a test can tell the view from the list.
-      << " searchOn=" << (search_prompt_ ? 1 : 0)
-      << " searchRows="
+      << " searchOn=" << (search_prompt_ ? 1 : 0) << " searchRows="
       << (searchActive() ? static_cast<int>(search_rows_.size()) : 0)
       << " searchCursor=" << (searchActive() ? search_cursor_ : 0)
-      << " searchQuery="
-      << (search_prompt_ ? search_buffer_ : std::string())
+      << " searchQuery=" << (search_prompt_ ? search_buffer_ : std::string())
       << " pane="
       << (workspace_pane_ == WorkspacePane::Tree ? "tree" : "tracks")
       // Single-pane mode hides the sidebar (and with it the playback block):
       // a script has to be able to tell "no block because no sidebar" from
       // "block missing".
-      << " single=" << (metrics_.workspace_single_pane ? 1 : 0)
+      << " single="
+      << (metrics_.workspace_single_pane ? 1 : 0)
       // The tree's own cursor, by STABLE ID: a test can then name what is
       // selected instead of counting rows, which is what keeps it honest when
       // the tree gains or loses an entry.
       << " node="
       << (workspace_tree_.current() != nullptr ? workspace_tree_.current()->id
                                                : "-")
-      << " nodeRow=" << workspace_tree_.cursor()
+      << " nodeRow="
+      << workspace_tree_.cursor()
       // How many rows the tree currently shows. A fold is a VISIBILITY change,
       // so this is what a test asserts on: the cursor can stay on the same node
       // while the row count changes underneath it.
-      << " treeRows=" << workspace_tree_.visible().size()
+      << " treeRows="
+      << workspace_tree_.visible().size()
       // The binding table's two focus areas, and the row it remembers. Reported
       // because "focused" and "remembered" are deliberately different states.
-      << " kbArea=" << [this]() -> std::string {
-           const core::KeybindingsSection *table = keybindings();
-           // Same predicate the sections render with: while an overlay (a
-           // prompt or the reset confirmation) owns the keyboard, no area of
-           // the pane does.
-           if (table == nullptr || state_.page != Page::Settings ||
-               workspace_pane_ != WorkspacePane::TrackList ||
-               overlayOwnsKeyboard())
-             return "off";
-           return std::string(table->focusArea());
-         }()
-      << " kbRow=" << [this] {
-           const core::KeybindingsSection *table = keybindings();
-           return table != nullptr ? table->cursorIndex() : -1;
-         }()
-      << " page=" << (state_.page == Page::Settings ? "core" : "vault")
+      << " kbArea=" <<
+      [this]() -> std::string {
+    const core::KeybindingsSection *table = keybindings();
+    // Same predicate the sections render with: while an overlay (a
+    // prompt or the reset confirmation) owns the keyboard, no area of
+    // the pane does.
+    if (table == nullptr || state_.page != Page::Settings ||
+        workspace_pane_ != WorkspacePane::TrackList || overlayOwnsKeyboard())
+      return "off";
+    return std::string(table->focusArea());
+  }() << " kbRow="
+      <<
+                      [this] {
+                        const core::KeybindingsSection *table = keybindings();
+                        return table != nullptr ? table->cursorIndex() : -1;
+                      }()
+      << " page="
+      << (state_.page == Page::Settings ? "core" : "vault")
       // The Core pane's cursor, by LABEL: a script can drive a setting by name
       // instead of counting rows that shift when a note is added.
       // Spaces become underscores: every state field is a whitespace token, so
       // a label like "Save and reconnect" must stay assertable.
-      << " setting=" << [this] {
-           std::string label = core_panel_ ? core_panel_->selectedSetting() : "";
-           for (char &character : label) {
-             if (character == ' ')
-               character = '_';
-           }
-           return label;
-         }()
+      << " setting=" <<
+                      [this] {
+                        std::string label =
+                            core_panel_ ? core_panel_->selectedSetting() : "";
+                        for (char &character : label) {
+                          if (character == ' ')
+                            character = '_';
+                        }
+                        return label;
+                      }()
       // The presentation mode is a separate axis from the section: a script has
       // to be able to tell "in the workspace" from "immersive is open".
       << " view="
       << (state_.presentation == PresentationMode::ImmersiveNowPlaying
               ? "immersive"
               : "normal")
-      << " player=" << static_cast<int>(state_.player.state)
+      << " player="
+      << static_cast<int>(state_.player.state)
       // The connection contract, as the backend actually uses it: the socket
       // timeout must never be 0 (libmpdclient reads 0 as "wait forever") and
       // stop_on_exit decides whether quitting stops the daemon.
@@ -3259,8 +3585,8 @@ std::string Application::scriptStateSummary() {
       << " mpd=" << (state_.mpd_connected ? 1 : 0)
       << " mpdTimeout=" << state_.settings.mpd_timeout_ms
       << " stopOnExit=" << (controller_.config().stop_on_exit ? 1 : 0)
-      << " songId=" << state_.player.current_song_id
-      << " uri=" << (state_.player.current_song ? state_.player.current_song->uri : "-")
+      << " songId=" << state_.player.current_song_id << " uri="
+      << (state_.player.current_song ? state_.player.current_song->uri : "-")
       // Live immersive geometry, straight from the single metrics source: the
       // layout is reported, never measured from a rendered string.
       << " body=" << metrics_.immersive.body_width << "x"
@@ -3273,7 +3599,8 @@ std::string Application::scriptStateSummary() {
       << " vizTopPad=" << metrics_.immersive.visualizer_top_pad
       << " vizBottomPad=" << metrics_.immersive.visualizer_bottom_pad
       << " vizRows=" << metrics_.immersive.visualizer_container_rows
-      << " vizCols=" << metrics_.immersive.visualizer_container_columns
+      << " vizCols="
+      << metrics_.immersive.visualizer_container_columns
       // The drawable grid the Spectrum draws in: origin and drawn size, from
       // the metrics. `vizRows` / `gridRows` differ because the grid floats
       // inside its container, and the baseline is the centre of the GRID.
@@ -3285,80 +3612,96 @@ std::string Application::scriptStateSummary() {
       << " levels=" << metrics_.immersive.visualizer_levels
       << " strideX=" << metrics_.immersive.visualizer_column_stride
       << " strideY=" << metrics_.immersive.visualizer_row_stride
-      << " playerGap=" << metrics_.immersive.player_gap_rows
+      << " playerGap="
+      << metrics_.immersive.player_gap_rows
       // Signal level, so a test can tell "no data" from "no output".
-      << " vizSignal=" << state_.visualizer.position.size() << ":"
-      << [&] {
-           float top = 0.0F;
-           for (const float value : state_.visualizer.position)
-             top = std::max(top, value);
-           return static_cast<int>(std::lround(top * 100.0F));
-         }()
-      << " vizLive=" << (state_.visualizer.data_available ? 1 : 0)
+      << " vizSignal=" << state_.visualizer.position.size() << ":" <<
+                      [&] {
+                        float top = 0.0F;
+                        for (const float value : state_.visualizer.position)
+                          top = std::max(top, value);
+                        return static_cast<int>(std::lround(top * 100.0F));
+                      }()
+      << " vizLive="
+      << (state_.visualizer.data_available ? 1 : 0)
       // The ONE visualizer, and what it is holding. `vizCells` is the
       // drawn-cell count of the last frame; `vizBase` is the DOT row the bars
       // stand on, `vizMain` the tallest a bar may be, and `vizBars` / `vizDots`
       // the bar count and the dot count -- the dots are one per bar and are
       // drawn whether or not any audio is arriving.
-      << " viz=" << (visualizer_ ? visualizer_->id() : termusic::ui::kVisualizerId)
+      << " viz="
+      << (state_.display_mode == DisplayMode::Disc
+              ? "disc"
+              : (visualizer_ ? visualizer_->id()
+                             : termusic::ui::kVisualizerId))
       << " vizPalette="
       << termusic::ui::normalizeVisualizerPaletteId(
-             controller_.config().visualizer_palette)
+                      controller_.config().visualizer_palette)
       << " vizCells=" << (visualizer_ ? visualizer_->stats().drawn : 0)
       << " vizHeld=" << (visualizer_ ? visualizer_->stats().retained : 0)
       << " vizCap=" << (visualizer_ ? visualizer_->stats().capacity : 0)
       << " vizBase=" << (visualizer_ ? visualizer_->stats().baseline : 0)
       << " vizMain=" << (visualizer_ ? visualizer_->stats().main_rows : 0)
       << " vizBars=" << (visualizer_ ? visualizer_->stats().bars : 0)
-      << " vizDots=" << (visualizer_ ? visualizer_->stats().dots : 0)
+      << " vizDots="
+      << (visualizer_ ? visualizer_->stats().dots : 0)
+      << " discOn=" << (disc_ && disc_->stats().needle_on_disc ? 1 : 0)
+      << " discPark=" << (disc_ && disc_->stats().parked_outside ? 1 : 0)
+      << " discFit=" << (!disc_ || disc_->stats().geometry_fits ? 1 : 0)
       // The sidebar's two regions, from the metrics: a script can assert the
       // responsive behaviour without measuring pixels.
       << " sideRows=" << metrics_.sidebar.rows
       << " sideTree=" << metrics_.sidebar.tree_rows
       << " sideInfo=" << metrics_.sidebar.playback_rows
       << " sideGap=" << metrics_.sidebar.playback_top_gap
-      << " sidePad=" << metrics_.sidebar.playback_bottom_pad
-      << " sideW=" << metrics_.sidebar.width
+      << " sidePad=" << metrics_.sidebar.playback_bottom_pad << " sideW="
+      << metrics_.sidebar.width
       // What the block actually DREW: whether it is on screen, the role of its
       // accent bar, and the role of each line top-down. A text frame cannot
       // show colour or weight, so the hierarchy is reported rather than
       // guessed at from glyphs.
       << " sideShown=" << (sidebar_roles_.empty() ? 0 : 1)
       << " sideBar=" << (sidebar_bar_.empty() ? "none" : sidebar_bar_)
-      << " sideRoles=" << [this] {
-           std::string joined;
-           for (const std::string &role : sidebar_roles_) {
-             if (!joined.empty())
-               joined += ",";
-             joined += role;
-           }
-           return joined.empty() ? std::string("none") : joined;
-         }()
+      << " sideRoles=" <<
+                      [this] {
+                        std::string joined;
+                        for (const std::string &role : sidebar_roles_) {
+                          if (!joined.empty())
+                            joined += ",";
+                          joined += role;
+                        }
+                        return joined.empty() ? std::string("none") : joined;
+                      }()
       << " beats=" << beat_.beats
-      << " beatBpm=" << static_cast<int>(std::lround(beat_.bpm))
-      << " beatLast=" << static_cast<int>(std::lround(beat_.last_interval * 1000.0))
-      << " beatMean=" << static_cast<int>(std::lround(beat_.mean_interval * 1000.0))
-      << " beatEnv=" << static_cast<int>(std::lround(beat_.envelope * 100.0))
+      << " beatBpm=" << static_cast<int>(std::lround(beat_.bpm)) << " beatLast="
+      << static_cast<int>(std::lround(beat_.last_interval * 1000.0))
+      << " beatMean="
+      << static_cast<int>(std::lround(beat_.mean_interval * 1000.0))
+      << " beatEnv="
+      << static_cast<int>(std::lround(beat_.envelope * 100.0))
       // What the onset test actually compares: low-band energy against its
       // rolling reference. Without these two, "no beats" is unreadable.
       << " beatLow=" << static_cast<int>(std::lround(low_energy_ * 100.0))
       << " beatBase=" << static_cast<int>(std::lround(beat_.baseline * 100.0))
-      << " vizBand=" << [&] {
-           int best = -1;
-           float top = -1.0F;
-           for (std::size_t i = 0; i < state_.visualizer.position.size(); ++i)
-             if (state_.visualizer.position[i] > top) {
-               top = state_.visualizer.position[i];
-               best = static_cast<int>(i);
-             }
-           return best;
-         }()
-      << " random=" << (state_.player.random ? 1 : 0)
+      << " vizBand=" <<
+                      [&] {
+                        int best = -1;
+                        float top = -1.0F;
+                        for (std::size_t i = 0;
+                             i < state_.visualizer.position.size(); ++i)
+                          if (state_.visualizer.position[i] > top) {
+                            top = state_.visualizer.position[i];
+                            best = static_cast<int>(i);
+                          }
+                        return best;
+                      }()
+      << " random="
+      << (state_.player.random ? 1 : 0)
       // Volume and repeat are LOAD-BEARING for the shortcut cleanup: a removed
       // `+`/`-` must leave the volume alone, and `r` must still toggle repeat.
       // Reporting them is what lets a script assert that instead of assuming.
-      << " repeat=" << (state_.player.repeat ? 1 : 0)
-      << " volume=" << state_.player.volume
+      << " repeat=" << (state_.player.repeat ? 1 : 0) << " volume="
+      << state_.player.volume
       // The Player Bar's own budget: one playback-mode control (Shuffle), so
       // the cluster is four buttons wide and the progress track gets the rest.
       << " controlsWidth=" << metrics_.controls_width
@@ -3413,7 +3756,8 @@ bool Application::bottomBoxVisible() {
   // permanent hint line, no key legend and no status text any more; feedback
   // travels through the transient toast instead.
   core::KeybindingsSection *table = keybindings();
-  return search_prompt_ || playlist_prompt_ || delete_playlist_pending_ ||
+  return search_prompt_ || playlist_prompt_ || stream_prompt_ || agent_prompt_ ||
+         delete_playlist_pending_ ||
          (table != nullptr && table->resetPending());
 }
 
@@ -3460,6 +3804,16 @@ Element Application::renderBottomBox() {
   }
   if (search_prompt_)
     return renderSearchInput();
+  if (stream_prompt_)
+    return inputBox("stream URL", stream_prompt_text_, visual_message_error_);
+  if (agent_prompt_)
+    return vbox(Elements{
+               hbox(Elements{
+                   text(" Agent > ") | bold | color(theme_.accent_secondary),
+                   agent_input_->Render() | flex,
+               }),
+           }) |
+           borderStyled(ROUNDED, theme_.input_border);
   if (playlist_prompt_)
     return inputBox(playlist_prompt_rename_ ? "rename" : "new playlist",
                     playlist_prompt_text_, false);
@@ -3555,12 +3909,12 @@ double Application::lowBandOnset() const {
   double sum = 0.0;
   for (int band = 0; band < pairs; ++band)
     sum += std::max(0.0F, fast[static_cast<std::size_t>(band)] -
-                               slow[static_cast<std::size_t>(band)]);
+                              slow[static_cast<std::size_t>(band)]);
   return sum / static_cast<double>(pairs);
 }
 
-ui::VisualizerFrame Application::visualizerFrame(
-    const ui::VisualizerPalette &palette, double dt) {
+ui::VisualizerFrame
+Application::visualizerFrame(const ui::VisualizerPalette &palette, double dt) {
   const ImmersiveLayout &layout = metrics_.immersive;
   const bool live = state_.visualizer.data_available || motion_test_;
   return ui::VisualizerFrame{
@@ -3578,17 +3932,34 @@ ui::VisualizerFrame Application::visualizerFrame(
 }
 
 Element Application::renderImmersiveVisualizer() {
-  // ONE adapter, no selection: the Spectrum is the only renderer, so this
-  // function hands it the shared frame and draws the result.
-  //
-  // The beat envelope is stepped here because it belongs to the shared model,
-  // not to the renderer.
-  ensureVisualizerRenderer();
   const auto now = std::chrono::steady_clock::now();
   double dt = 1.0 / 60.0;
   if (last_visualizer_time_.time_since_epoch().count() != 0)
     dt = std::chrono::duration<double>(now - last_visualizer_time_).count();
   last_visualizer_time_ = now;
+
+  if (state_.display_mode == DisplayMode::Disc) {
+    if (!disc_)
+      disc_ = std::make_unique<ui::DiscRenderer>();
+    const ImmersiveLayout &layout = metrics_.immersive;
+    const std::string_view identity = state_.player.current_song
+                                          ? state_.player.current_song->uri
+                                          : std::string_view{};
+    ui::DiscFrame frame{
+        .columns = std::max(0, layout.visualizer_container_columns),
+        .rows = std::max(0, layout.visualizer_container_rows),
+        .dt = std::clamp(dt, 1.0 / 240.0, 0.12),
+        .playback = state_.player.state,
+        .progress = displayProgress(state_, now),
+        .track_identity = identity,
+        .theme = theme_,
+    };
+    disc_->update(frame);
+    return disc_->render(frame);
+  }
+
+  // Spectrum keeps its existing data, beat and rendering path unchanged.
+  ensureVisualizerRenderer();
   dt = std::clamp(dt, 1.0 / 240.0, 0.05);
   low_energy_ = lowBandOnset();
   beat_ = beatStep(beat_, low_energy_, dt);
@@ -3596,8 +3967,8 @@ Element Application::renderImmersiveVisualizer() {
   // The palette is read from the configuration on every frame: it is the one
   // visualizer setting that changes what the cells look like, and nothing has
   // to be rebuilt for it.
-  const ui::VisualizerPalette &palette = ui::visualizerPalette(
-      controller_.config().visualizer_palette);
+  const ui::VisualizerPalette &palette =
+      ui::visualizerPalette(controller_.config().visualizer_palette);
   ui::VisualizerFrame frame = visualizerFrame(palette, dt);
   visualizer_->update(frame);
   return visualizer_->render(frame);
@@ -3616,8 +3987,8 @@ ftxui::Element midRow(ftxui::Element element) {
 } // namespace
 
 Element Application::renderTransportButton(Icon icon, bool focused,
-                                            bool highlighted, int box_height,
-                                            bool hovered, bool toggle) {
+                                           bool highlighted, int box_height,
+                                           bool hovered, bool toggle) {
   const int box_width = metrics_.playback_button_width;
   return transportButton(icon, icon_set_, theme_, focused, highlighted,
                          box_width, box_height, hovered, toggle);
@@ -3637,7 +4008,7 @@ Element Application::squareProgress(const SliderGeometry &geometry,
   for (int index = 0; index < cells; ++index) {
     const bool is_filled = index < filled;
     out.push_back(text(is_filled ? "\u25aa" : "\u25ab") |
-                   color(is_filled ? filled_color : empty_color));
+                  color(is_filled ? filled_color : empty_color));
   }
   return hbox(std::move(out));
 }
@@ -3699,9 +4070,8 @@ Element Application::renderPlayerBar() {
                                ? drag_volume_
                                : (state_.player.volume < 0
                                       ? 0.0
-                                      : std::clamp(
-                                            state_.player.volume / 100.0, 0.0,
-                                            1.0))),
+                                      : std::clamp(state_.player.volume / 100.0,
+                                                   0.0, 1.0))),
                        theme_.volume_fill, theme_.volume_empty) |
                    reflect(volume_box_))
           : text("");
@@ -3712,8 +4082,7 @@ Element Application::renderPlayerBar() {
       midRow(text(util::repeat(metrics_.player_gap_large, " ")));
   // A single divider between the timeline and the volume group, with clear
   // space on both sides -- never glued to the speaker.
-  const Element divider =
-      midRow(text("\u2502") | color(theme_.divider));
+  const Element divider = midRow(text("\u2502") | color(theme_.divider));
   const Element pad = midRow(text(util::repeat(metrics_.player_padding, " ")));
   const Element speaker =
       midRow(renderTransportButton(Icon::Speaker, false, false, 1));
@@ -3728,9 +4097,8 @@ Element Application::renderPlayerBar() {
     // Hover and press are presentation only: they never change geometry.
     const bool hovered = hover_control_ == control_id;
     const bool pressed = pressed_control_ == control_id;
-    Element button =
-        renderTransportButton(icon, focused, highlighted || pressed,
-                              box_height, hovered, toggle);
+    Element button = renderTransportButton(
+        icon, focused, highlighted || pressed, box_height, hovered, toggle);
     Element laid_out =
         box_height >= 3 ? std::move(button) : midRow(std::move(button));
     // reflect() records the box the layout engine actually assigned, so the
@@ -3781,7 +4149,7 @@ Element Application::renderPlayerBar() {
   }
 
   // --- Single row: fixed cluster, flexible track ---------------------------
-  Elements row = {pad, std::move(transport), gap2, elapsed_label, gap2, track,
+  Elements row = {pad,  std::move(transport), gap2, elapsed_label, gap2, track,
                   gap2, total_label};
   if (metrics_.show_volume && volume_width > 0) {
     row.push_back(gap3);
@@ -3791,35 +4159,34 @@ Element Application::renderPlayerBar() {
     row.push_back(gap2);
     row.push_back(volume_track);
     row.push_back(gap2);
-    row.push_back(midRow(text(util::padRight(
-                             util::formatVolume(state_.player.volume), 4)) |
-                         color(theme_.weak_text)));
+    row.push_back(midRow(
+        text(util::padRight(util::formatVolume(state_.player.volume), 4)) |
+        color(theme_.weak_text)));
   }
   row.push_back(pad);
   return hbox(std::move(row)) | vcenter;
 }
 
-
 Element Application::renderModal() {
   Element content;
   switch (modal_) {
   case Modal::NewPlaylist:
-    content = vbox(
-        {text("New playlist") | bold,
-         hbox({text("Name: "), modal_input_->Render() | flex}),
-         text("Enter to create \u00b7 Esc to cancel") | color(theme_.muted_text)});
+    content = vbox({text("New playlist") | bold,
+                    hbox({text("Name: "), modal_input_->Render() | flex}),
+                    text("Enter to create \u00b7 Esc to cancel") |
+                        color(theme_.muted_text)});
     break;
   case Modal::RenamePlaylist:
-    content = vbox(
-        {text("Rename playlist") | bold,
-         hbox({text("Name: "), modal_input_->Render() | flex}),
-         text("Enter to rename \u00b7 Esc to cancel") | color(theme_.muted_text)});
+    content = vbox({text("Rename playlist") | bold,
+                    hbox({text("Name: "), modal_input_->Render() | flex}),
+                    text("Enter to rename \u00b7 Esc to cancel") |
+                        color(theme_.muted_text)});
     break;
   case Modal::DeletePlaylist:
-    content = vbox(
-        {text("Delete this playlist?") | bold | color(theme_.error),
-         text("This cannot be undone."),
-         text("Enter to delete \u00b7 Esc to cancel") | color(theme_.muted_text)});
+    content = vbox({text("Delete this playlist?") | bold | color(theme_.error),
+                    text("This cannot be undone."),
+                    text("Enter to delete \u00b7 Esc to cancel") |
+                        color(theme_.muted_text)});
     break;
   case Modal::ChoosePlaylist:
     content = vbox(
@@ -3834,15 +4201,86 @@ Element Application::renderModal() {
          borderStyled(ROUNDED, theme_.border) | bgcolor(theme_.background);
 }
 
+std::string Application::currentLyricsIdentity() const {
+  if (!state_.player.current_song)
+    return {};
+  const Song &song = *state_.player.current_song;
+  return song.source_id + "\n" + song.source_track_id + "\n" + song.uri;
+}
+
+void Application::refreshLyrics() {
+  lyrics_song_identity_ = currentLyricsIdentity();
+  if (!state_.player.current_song) {
+    lyrics_result_ = {lyrics::LoadStatus::Unavailable, {},
+                      "No track is currently playing"};
+    return;
+  }
+  lyrics_result_ = local_lyrics_.load(
+      *state_.player.current_song,
+      std::filesystem::path(controller_.config().library_path));
+}
+
+Element Application::renderLyricsOverlay() {
+  constexpr int kWidth = 68;
+  constexpr int kVisibleLines = 11;
+  Elements rows;
+  const Song *song =
+      state_.player.current_song ? &*state_.player.current_song : nullptr;
+  const std::string heading =
+      song == nullptr ? "Lyrics" : "Lyrics — " + song->displayTitle();
+  rows.push_back(text(" " + util::ellipsize(heading, kWidth - 2)) | bold |
+                 color(theme_.accent_primary));
+  rows.push_back(text(""));
+
+  if (!lyrics_result_.found()) {
+    rows.push_back(text(lyrics_result_.message.empty()
+                            ? "Lyrics are unavailable"
+                            : lyrics_result_.message) |
+                   color(theme_.muted_text));
+    rows.push_back(text(""));
+  } else {
+    const lyrics::Document &document = lyrics_result_.document;
+    const int count = static_cast<int>(document.lines.size());
+    int active = document.synchronized
+                     ? document.activeLine(displayElapsed(
+                           state_, std::chrono::steady_clock::now()))
+                     : -1;
+    int first = 0;
+    if (active >= 0)
+      first = std::clamp(active - kVisibleLines / 2, 0,
+                         std::max(0, count - kVisibleLines));
+    const int last = std::min(count, first + kVisibleLines);
+    for (int index = first; index < last; ++index) {
+      const bool current = index == active;
+      std::string value = document.lines[static_cast<std::size_t>(index)].text;
+      if (value.empty())
+        value = " ";
+      Element line = text(" " + util::ellipsize(value, kWidth - 3));
+      if (current)
+        line = std::move(line) | bold | color(theme_.playing) |
+               bgcolor(theme_.hover_bg);
+      else
+        line = std::move(line) | color(theme_.text);
+      rows.push_back(std::move(line));
+    }
+    for (int index = last - first; index < kVisibleLines; ++index)
+      rows.push_back(text(""));
+    rows.push_back(text(""));
+  }
+  rows.push_back(text("L or Esc to close") | color(theme_.weak_text));
+  return vbox(std::move(rows)) | size(WIDTH, EQUAL, kWidth) |
+         borderStyled(ROUNDED, theme_.border) | bgcolor(theme_.background);
+}
+
 Element Application::renderHelpOverlay() const {
   Elements rows = {
       text("termusic — 快捷键") | bold | color(theme_.accent_primary),
       text(""),
   };
   const auto line = [this](std::string keys, std::string label) {
-    return hbox({text(util::padRight(keys, 16)) | bold |
-                     color(theme_.accent_primary),
-                 text(label) | color(theme_.text)});
+    return hbox(
+        {text(util::padRight(keys, 16)) | bold | color(theme_.accent_primary),
+         text(label) | color(theme_.text)});
   };
   const std::vector<std::pair<std::string, std::string>> entries = {
       {"1 / 2", "切换 Library / Settings"},
@@ -3858,6 +4296,8 @@ Element Application::renderHelpOverlay() const {
       {"+ / -", "音量增减"},
       {"s / r", "随机 / 循环"},
       {"/", "搜索"},
+      {"Agent", "同时查询本地音乐和 Streams，Enter 播放结果"},
+      {"L", "显示或隐藏当前歌曲歌词"},
       {"< > ?", "显示或隐藏本帮助"},
       {"R", "重新连接 MPD"},
       {"q", "退出"},
@@ -3867,7 +4307,6 @@ Element Application::renderHelpOverlay() const {
   return vbox(std::move(rows)) | size(WIDTH, EQUAL, 72) |
          borderStyled(ROUNDED, theme_.border) | bgcolor(theme_.background);
 }
-
 
 core::SettingsSection *Application::selectedCoreSection() {
   // The section the tree cursor points at. The panel is the authority for the
@@ -4039,14 +4478,15 @@ bool Application::handleEvent(Event event) {
   if (event.is_mouse()) {
     const auto &mouse = event.mouse();
 
-
     // ---- Transport controls ------------------------------------------------
     // Handled here rather than by the FTXUI Button nodes so that a click works
     // regardless of keyboard focus, and so the action fires exactly once (on
     // release, never on press as well).
     if (mouse.button == Mouse::Left || mouse.button == Mouse::None) {
       const std::pair<const Box *, int> targets[] = {
-          {&shuffle_box_, 0}, {&previous_box_, 1}, {&play_box_, 2},
+          {&shuffle_box_, 0},
+          {&previous_box_, 1},
+          {&play_box_, 2},
           {&next_box_, 3},
       };
       int hit = -1;
@@ -4122,8 +4562,8 @@ bool Application::handleEvent(Event event) {
       else if (on_volume)
         drag_target_ = 2;
       if (drag_target_ != 0 && mouse_debug_)
-        mouse_debug_text_ = drag_target_ == 1 ? "drag progress begin"
-                                              : "drag volume begin";
+        mouse_debug_text_ =
+            drag_target_ == 1 ? "drag progress begin" : "drag volume begin";
       if (drag_target_ != 0) {
         screen_.PostEvent(Event::Custom);
         // fall through: the preview below runs on this same event
@@ -4135,8 +4575,8 @@ bool Application::handleEvent(Event event) {
     if (drag_target_ == 1) {
       drag_progress_ = ratio_at(progress_box_, mouse.x);
       if (mouse_debug_)
-        mouse_debug_text_ = "progress prev=" +
-                            std::to_string(drag_progress_).substr(0, 5);
+        mouse_debug_text_ =
+            "progress prev=" + std::to_string(drag_progress_).substr(0, 5);
       screen_.PostEvent(Event::Custom);
       if (mouse.motion == Mouse::Released) {
         if (state_.player.duration_seconds > 0.0)
@@ -4224,12 +4664,11 @@ void Application::updateVisualizerMotion() {
     for (int band = 0; band < kCanonicalBands; ++band) {
       if (position.empty())
         continue;
-      const auto at = static_cast<std::size_t>(
-          std::min(position.size() - 1,
-                   static_cast<std::size_t>(
-                       static_cast<double>(band) /
-                       static_cast<double>(kCanonicalBands - 1) *
-                       static_cast<double>(position.size() - 1))));
+      const auto at = static_cast<std::size_t>(std::min(
+          position.size() - 1,
+          static_cast<std::size_t>(static_cast<double>(band) /
+                                   static_cast<double>(kCanonicalBands - 1) *
+                                   static_cast<double>(position.size() - 1))));
       next_position[static_cast<std::size_t>(band)] = position[at];
       next_velocity[static_cast<std::size_t>(band)] = velocity[at];
     }
@@ -4243,13 +4682,13 @@ void Application::updateVisualizerMotion() {
   // alpha = 1 - exp(-dt/tau) keeps the response identical whether the analyzer
   // runs at 60 Hz or 30 Hz.
   const auto alpha = [step](double tau_seconds) {
-    return static_cast<float>(1.0 - std::exp(-static_cast<double>(step) /
-                                             tau_seconds));
+    return static_cast<float>(
+        1.0 - std::exp(-static_cast<double>(step) / tau_seconds));
   };
-  constexpr double kFastAttack = 0.035;   // 35 ms
-  constexpr double kFastRelease = 0.145;  // 145 ms
-  constexpr double kSlowAttack = 0.230;   // 230 ms
-  constexpr double kSlowRelease = 0.600;  // 600 ms
+  constexpr double kFastAttack = 0.035;    // 35 ms
+  constexpr double kFastRelease = 0.145;   // 145 ms
+  constexpr double kSlowAttack = 0.230;    // 230 ms
+  constexpr double kSlowRelease = 0.600;   // 600 ms
   constexpr double kReflectionTau = 0.100; // 100 ms
   const float fast_rise = alpha(kFastAttack);
   const float fast_fall = alpha(kFastRelease);
@@ -4271,18 +4710,17 @@ void Application::updateVisualizerMotion() {
     const auto raw_at = [&](int index) {
       if (source.empty())
         return 0.0F;
-      const auto at = static_cast<std::size_t>(
-          std::min(source.size() - 1,
-                   static_cast<std::size_t>(
-                       static_cast<double>(std::clamp(index, 0,
-                                                      kCanonicalBands - 1)) /
-                       static_cast<double>(kCanonicalBands - 1) *
-                       static_cast<double>(source.size() - 1))));
+      const auto at = static_cast<std::size_t>(std::min(
+          source.size() - 1,
+          static_cast<std::size_t>(
+              static_cast<double>(std::clamp(index, 0, kCanonicalBands - 1)) /
+              static_cast<double>(kCanonicalBands - 1) *
+              static_cast<double>(source.size() - 1))));
       return std::clamp(source[at], 0.0F, 1.0F);
     };
-    kernelled[static_cast<std::size_t>(band)] =
-        0.15F * raw_at(band - 1) + 0.70F * raw_at(band) +
-        0.15F * raw_at(band + 1);
+    kernelled[static_cast<std::size_t>(band)] = 0.15F * raw_at(band - 1) +
+                                                0.70F * raw_at(band) +
+                                                0.15F * raw_at(band + 1);
   }
 
   // --- Visual Headroom Controller (presentation only) ----------------------
@@ -4292,8 +4730,8 @@ void Application::updateVisualizerMotion() {
   // (so a sudden loud passage never sits saturated) and a slow recovery.
   const auto frame_p95 = [&kernelled]() {
     std::vector<float> sorted(kernelled);
-    const auto at = static_cast<std::size_t>(
-        0.95 * static_cast<double>(sorted.size() - 1));
+    const auto at =
+        static_cast<std::size_t>(0.95 * static_cast<double>(sorted.size() - 1));
     std::nth_element(sorted.begin(),
                      sorted.begin() + static_cast<std::ptrdiff_t>(at),
                      sorted.end());
@@ -4328,8 +4766,7 @@ void Application::updateVisualizerMotion() {
 
   for (int band = 0; band < kCanonicalBands; ++band) {
     const auto index = static_cast<std::size_t>(band);
-    const float driven =
-        kernelled[index] * headroom_gain_;
+    const float driven = kernelled[index] * headroom_gain_;
     const float compressed =
         driven <= kCompThreshold
             ? driven
@@ -4340,10 +4777,10 @@ void Application::updateVisualizerMotion() {
                    0.0F, 1.0F),
         kDisplayGamma);
 
-    fast[index] += (value - fast[index]) *
-                   (value > fast[index] ? fast_rise : fast_fall);
-    slow[index] += (value - slow[index]) *
-                   (value > slow[index] ? slow_rise : slow_fall);
+    fast[index] +=
+        (value - fast[index]) * (value > fast[index] ? fast_rise : fast_fall);
+    slow[index] +=
+        (value - slow[index]) * (value > slow[index] ? slow_rise : slow_fall);
     // The mix leans on the FAST envelope, so the height follows the music's
     // own rhythm instead of gliding between sections.
     target[index] = 0.82F * fast[index] + 0.18F * slow[index];
@@ -4430,34 +4867,37 @@ void Application::updateVisualizerMotion() {
                          sorted.end());
         return static_cast<double>(sorted[at]);
       };
-      std::fprintf(stderr,
-                   "METRICS frames=%d meanDelta=%.5f maxDelta=%.4f "
-                   "movingBands=%.1f%% directionChanges=%d P50=%.3f P75=%.3f "
-                   "P95=%.3f hi80=%.1f%% hi90=%.1f%% hi95=%.1f%% "
-                   "low20=%.1f%% flux=%.4f gain=%.3f\n",
-                   motion_frames_, motion_sum_delta_ / frames,
-                   motion_max_delta_,
-                   100.0 * static_cast<double>(motion_moving_bands_) / frames /
-                       static_cast<double>(position.size()),
-                   motion_direction_changes_, pct(0.50), pct(0.75), pct(0.95),
-                   100.0 * static_cast<double>(std::count_if(
-                               position.begin(), position.end(),
-                               [](float v) { return v >= 0.80F; })) /
-                       static_cast<double>(position.size()),
-                   100.0 * static_cast<double>(std::count_if(
-                               position.begin(), position.end(),
-                               [](float v) { return v >= 0.90F; })) /
-                       static_cast<double>(position.size()),
-                   100.0 * static_cast<double>(std::count_if(
-                               position.begin(), position.end(),
-                               [](float v) { return v >= 0.95F; })) /
-                       static_cast<double>(position.size()),
-                   100.0 * static_cast<double>(std::count_if(
-                               position.begin(), position.end(),
-                               [](float v) { return v <= 0.20F; })) /
-                       static_cast<double>(position.size()),
-                   static_cast<double>(flux),
-                   static_cast<double>(headroom_gain_));
+      std::fprintf(
+          stderr,
+          "METRICS frames=%d meanDelta=%.5f maxDelta=%.4f "
+          "movingBands=%.1f%% directionChanges=%d P50=%.3f P75=%.3f "
+          "P95=%.3f hi80=%.1f%% hi90=%.1f%% hi95=%.1f%% "
+          "low20=%.1f%% flux=%.4f gain=%.3f\n",
+          motion_frames_, motion_sum_delta_ / frames, motion_max_delta_,
+          100.0 * static_cast<double>(motion_moving_bands_) / frames /
+              static_cast<double>(position.size()),
+          motion_direction_changes_, pct(0.50), pct(0.75), pct(0.95),
+          100.0 *
+              static_cast<double>(
+                  std::count_if(position.begin(), position.end(),
+                                [](float v) { return v >= 0.80F; })) /
+              static_cast<double>(position.size()),
+          100.0 *
+              static_cast<double>(
+                  std::count_if(position.begin(), position.end(),
+                                [](float v) { return v >= 0.90F; })) /
+              static_cast<double>(position.size()),
+          100.0 *
+              static_cast<double>(
+                  std::count_if(position.begin(), position.end(),
+                                [](float v) { return v >= 0.95F; })) /
+              static_cast<double>(position.size()),
+          100.0 *
+              static_cast<double>(
+                  std::count_if(position.begin(), position.end(),
+                                [](float v) { return v <= 0.20F; })) /
+              static_cast<double>(position.size()),
+          static_cast<double>(flux), static_cast<double>(headroom_gain_));
       motion_frames_ = 0;
       motion_sum_delta_ = 0.0;
       motion_max_delta_ = 0.0;
@@ -4483,10 +4923,15 @@ void Application::processTimers() {
   // repainting it 30 times a second is exactly what makes a terminal IME's
   // composition flicker. The fast rate is therefore suspended for as long as
   // the box is open; closing it brings the animation straight back.
-  ticker_fast_.store(
-      !search_prompt_ &&
-      (state_.player.state == PlaybackState::Playing || state_.demo ||
-       ui_slider_test_ || motion_test_ || state_.visualizer.data_available));
+  const bool disc_animation = state_.display_mode == DisplayMode::Disc &&
+                              disc_ && disc_->animationActive();
+  ticker_fast_interval_ms_.store(state_.display_mode == DisplayMode::Disc
+                                     ? 67
+                                     : 33);
+  ticker_fast_.store(!search_prompt_ &&
+                     (state_.player.state == PlaybackState::Playing ||
+                      disc_animation || state_.demo || ui_slider_test_ ||
+                      motion_test_ || state_.visualizer.data_available));
   // Top-bar clock. Refreshed at most once a second; the ticker is 250 ms.
   {
     if (state_.demo) {
@@ -4533,6 +4978,8 @@ void Application::processTimers() {
   if (active_collection_ == ActiveCollection::History &&
       controller_.history().revision() != history_revision_seen_)
     refreshHistoryView();
+  if (lyrics_visible_ && currentLyricsIdentity() != lyrics_song_identity_)
+    refreshLyrics();
 
   // Reference mode owns the whole state snapshot; never let the MPD watchdog
   // overwrite it or trigger a reconnect.
@@ -4558,8 +5005,7 @@ void Application::processTimers() {
   if (state_.mpd_connected) {
     reconnect_attempts_ = 0;
   } else if (controller_.config().auto_reconnect &&
-             now - last_reconnect_ >=
-                 reconnectDelay(reconnect_attempts_ + 1)) {
+             now - last_reconnect_ >= reconnectDelay(reconnect_attempts_ + 1)) {
     last_reconnect_ = now;
     if (controller_.reconnect()) {
       reconnect_attempts_ = 0;
@@ -4589,6 +5035,10 @@ void Application::dispatch(Action action) {
     // replace it, which left help openable but not closable.
     if (help_visible_) {
       help_visible_ = false;
+      break;
+    }
+    if (lyrics_visible_) {
+      lyrics_visible_ = false;
       break;
     }
     controller_.clearSearch();
@@ -4696,9 +5146,8 @@ void Application::focusCurrentList() {
   // `core`'s content pane is the opposite: sliders, toggles, text fields and
   // the binding table handle their own keys, so they must genuinely own the
   // focus or nothing there can be operated.
-  const bool content_owns_keys =
-      state_.page == Page::Settings &&
-      workspace_pane_ == WorkspacePane::TrackList;
+  const bool content_owns_keys = state_.page == Page::Settings &&
+                                 workspace_pane_ == WorkspacePane::TrackList;
   if (content_owns_keys) {
     // The panel's tab hands focus to the selected entry's own widgets, which
     // is the only way they can be operated at all.
@@ -4719,6 +5168,9 @@ const TrackColumns &Application::activeColumns() const {
     return metrics_.library_columns;
   case ActiveCollection::History:
     return metrics_.history_columns;
+  case ActiveCollection::Streams:
+  case ActiveCollection::Agent:
+    return metrics_.playlist_columns;
   case ActiveCollection::Playlist:
     break;
   }
@@ -4726,7 +5178,7 @@ const TrackColumns &Application::activeColumns() const {
 }
 
 std::string Application::songRow(const Song &song, int ordinal, int width,
-                                  bool playing) const {
+                                 bool playing) const {
   (void)width; // the column budget already comes from the live metrics
   return std::string(playing ? "▶" : " ") + " " + songRowBody(song, ordinal);
 }
@@ -4734,11 +5186,13 @@ std::string Application::songRow(const Song &song, int ordinal, int width,
 std::string Application::songRowBody(const Song &song, int ordinal) const {
   const SongRowParts parts = songRowParts(song, ordinal, activeColumns());
   return parts.ordinal + parts.icon + parts.title_lead + parts.title +
-         parts.artist + parts.album + parts.duration + parts.size + parts.played;
+         parts.artist + parts.album + parts.duration + parts.size +
+         parts.played;
 }
 
-Application::SongRowParts Application::songRowParts(
-    const Song &song, int ordinal, const TrackColumns &columns) const {
+Application::SongRowParts
+Application::songRowParts(const Song &song, int ordinal,
+                          const TrackColumns &columns) const {
   const bool header = ordinal < 0;
   SongRowParts parts;
 
@@ -4751,8 +5205,8 @@ Application::SongRowParts Application::songRowParts(
       return {};
     const std::string prefix(static_cast<std::size_t>(lead), ' ');
     const std::string body = util::ellipsize(std::move(value), width);
-    return prefix + (centred ? util::padLeft(body, width)
-                             : util::padRight(body, width));
+    return prefix +
+           (centred ? util::padLeft(body, width) : util::padRight(body, width));
   };
 
   if (columns.index > 0) {
@@ -4762,15 +5216,18 @@ Application::SongRowParts Application::songRowParts(
   if (columns.icon > 0) {
     // The header row leaves the icon column blank: the icon column carries no
     // label, which is what keeps the table minimal.
-    parts.icon = column(columns.icon,
-                        header ? std::string{} : iconGlyph(Icon::Music, icon_set_),
-                        0, true);
+    parts.icon = column(
+        columns.icon,
+        header ? std::string{} : iconGlyph(Icon::Music, icon_set_), 0, true);
   }
   if (columns.title > 0) {
     parts.title_lead = std::string(
         static_cast<std::size_t>(std::max(0, columns.title_lead)), ' ');
     parts.title = column(columns.title,
-                         header ? "Title" : song.displayTitle(), 0, false);
+                         header && active_collection_ == ActiveCollection::Agent
+                             ? "Source / Title"
+                             : (header ? "Title" : song.displayTitle()),
+                         0, false);
   }
   if (columns.artist > 0) {
     // The header's own separator is part of the column, which is what lets the
@@ -4779,8 +5236,8 @@ Application::SongRowParts Application::songRowParts(
                           header ? "Artist" : song.displayArtist(), 1, false);
   }
   if (columns.album > 0) {
-    parts.album = column(columns.album,
-                         header ? "Album" : song.displayAlbum(), 1, false);
+    parts.album =
+        column(columns.album, header ? "Album" : song.displayAlbum(), 1, false);
   }
   if (columns.duration > 0) {
     parts.duration = column(
@@ -4789,16 +5246,15 @@ Application::SongRowParts Application::songRowParts(
         true);
   }
   if (columns.size > 0) {
-    parts.size =
-        column(columns.size,
-               header ? "Size" : util::formatFileSize(song.file_size_bytes), 1,
-               true);
+    parts.size = column(
+        columns.size,
+        header ? "Size" : util::formatFileSize(song.file_size_bytes), 1, true);
   }
   if (columns.played > 0) {
-    parts.played = column(
-        columns.played,
-        header ? "Played At" : util::formatPlayedAt(song.played_at_epoch), 1,
-        false);
+    parts.played = column(columns.played,
+                          header ? "Played At"
+                                 : util::formatPlayedAt(song.played_at_epoch),
+                          1, false);
   }
   return parts;
 }

@@ -215,6 +215,8 @@ bool keyIsKnown(const std::string &section, const std::string &key) {
           {"library", {"path"}},
           {"mpd",
            {"host", "port", "password", "timeout_ms", "auto_reconnect"}},
+          {"subsonic",
+           {"enabled", "url", "username", "password", "timeout_ms"}},
           {"appearance",
            {"theme", "theme_directory", "icons", "slider", "transport_gap"}},
           {"theme", {"name", "directory"}},
@@ -316,6 +318,19 @@ void parseDocument(std::istream &input, ConfigLoad *load) {
       else if (key == "auto_reconnect")
         readBool(value, true, &config.auto_reconnect, diagnostics, "mpd",
                  "auto_reconnect");
+    } else if (section == "subsonic") {
+      if (key == "enabled")
+        readBool(value, false, &config.subsonic_enabled, diagnostics,
+                 "subsonic", "enabled");
+      else if (key == "url")
+        readString(value, &config.subsonic_url);
+      else if (key == "username")
+        readString(value, &config.subsonic_username);
+      else if (key == "password")
+        readString(value, &config.subsonic_password);
+      else if (key == "timeout_ms")
+        readNumber(value, 500, 60000, 8000, &config.subsonic_timeout_ms,
+                   diagnostics, "subsonic", "timeout_ms");
     } else if (section == "appearance" || section == "theme") {
       if (key == "theme" || key == "name")
         readString(value, &config.theme_name);
@@ -427,6 +442,13 @@ std::string serialize(const Config &config) {
          << "timeout_ms = " << config.mpd_timeout_ms << '\n'
          << "auto_reconnect = " << (config.auto_reconnect ? "true" : "false")
          << "\n\n"
+         << "[subsonic]\n"
+         << "enabled = " << (config.subsonic_enabled ? "true" : "false")
+         << '\n'
+         << "url = " << quote(config.subsonic_url) << '\n'
+         << "username = " << quote(config.subsonic_username) << '\n'
+         << "password = " << quote(config.subsonic_password) << '\n'
+         << "timeout_ms = " << config.subsonic_timeout_ms << "\n\n"
          << "[appearance]\n"
          << "theme = " << quote(config.theme_name) << '\n'
          << "theme_directory = " << quote(config.theme_directory) << '\n'
@@ -649,7 +671,7 @@ bool ConfigStore::save(const Config &config, std::string *error) const {
   }
   // The password is a secret, so a file that carries one is readable by its
   // owner only. A file without one keeps the usual permissions.
-  if (!config.mpd_password.empty())
+  if (!config.mpd_password.empty() || !config.subsonic_password.empty())
     (void)::chmod(temporary.c_str(), 0600);
 #else
   {
@@ -733,6 +755,15 @@ password = ""
 timeout_ms = 2000
 # Reconnect on its own, with a bounded retry interval, when the server goes away.
 auto_reconnect = true
+
+[subsonic]
+# Subsonic-compatible online library (Navidrome, Gonic, Airsonic, etc.).
+# Use the server root URL, without /rest. HTTPS is strongly recommended.
+enabled = false
+url = ""
+username = ""
+password = ""
+timeout_ms = 8000
 
 [appearance]
 # Theme id: catppuccin-mocha (default), kanagawa, material-palenight,

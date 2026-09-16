@@ -29,11 +29,19 @@ playlistsWithDefault(std::vector<std::string> saved_playlists);
 /// Top-level sections, in navigation order. There is deliberately NO
 /// `NowPlaying` page: the immersive song display is a *presentation mode*
 /// (`PresentationMode`) that overlays whichever section is active, not a
-/// section of its own. Its legacy spelling survives only as a config token. `Playlist` supersedes the old
-/// `Queue` page; the legacy config token is still accepted on load.
+/// section of its own. Its legacy spelling survives only as a config token.
+/// `Playlist` supersedes the old `Queue` page; the legacy config token is still
+/// accepted on load.
 enum class Page {
   Library,
   Settings,
+};
+
+/// The single primary visual in Immersive mode. A value (rather than two
+/// booleans) makes Spectrum and Disc mutually exclusive by construction.
+enum class DisplayMode {
+  Spectrum,
+  Disc,
 };
 
 /// Number of entries in the sidebar.
@@ -114,6 +122,11 @@ enum class FocusArea {
 /// One track, always built from MPD metadata (requirements v2 §16).
 struct Song {
   std::string uri;
+  /// Empty for MPD/local-library songs. Streaming songs retain their stable
+  /// provider identity separately because `uri` may be a short-lived signed
+  /// playback URL.
+  std::string source_id;
+  std::string source_track_id;
   std::string title;
   std::string artist;
   std::string album;
@@ -123,6 +136,8 @@ struct Song {
   std::string genre;
   std::string format;
   double duration_seconds = 0.0;
+  /// Live streams have no meaningful fixed duration or seek endpoint.
+  bool is_live_stream = false;
   /// Size of the underlying file in bytes, straight from MPD's `size`
   /// attribute. 0 means "MPD did not report one" -- the Library table then
   /// shows "--" instead of inventing a number. Only the media database and a
@@ -156,7 +171,7 @@ struct Song {
 /// it is the collection an explicit playback start came from. Only that
 /// collection may paint the playing row.
 struct PlaybackCollection {
-  enum class Kind { None, Library, History, Playlist };
+  enum class Kind { None, Library, History, Streams, Agent, Playlist };
 
   Kind kind = Kind::None;
   /// Playlist name; empty for every other kind.
@@ -220,7 +235,6 @@ double effectiveElapsed(const PlayerState &player,
 double progressRatio(const PlayerState &player,
                      std::chrono::steady_clock::time_point now);
 
-
 struct LibraryState {
   /// Index 0 is always the protected virtual Default playlist. The remaining
   /// entries are saved playlists read from MPD in MPD's order.
@@ -247,7 +261,7 @@ struct VisualizerState {
   /// Both persist across frames, page switches and resizes.
   std::vector<float> position;
   std::vector<float> velocity;
-  std::vector<float> display;  // unused legacy slot
+  std::vector<float> display; // unused legacy slot
   /// Two-timescale envelopes: `fast` carries transients, `slow` keeps the
   /// musical body between hits so bars do not collapse to the axis.
   std::vector<float> fast_envelope;
@@ -283,6 +297,7 @@ struct AppState {
   /// Orthogonal to `page`: the immersive display replaces the main region of
   /// whatever section is active and returns to it unchanged.
   PresentationMode presentation = PresentationMode::Normal;
+  DisplayMode display_mode = DisplayMode::Spectrum;
   /// The music register survives pane switches, collection changes and
   /// presentation changes until it is overwritten.
   MusicRegister music_register;
@@ -317,14 +332,13 @@ struct AppState {
   bool demo = false;
 
   // --- Pointer hover state, refreshed from mouse-motion events ---------------
-  int hover_nav = -1;            // Top navigation tab under the cursor.
-  int hover_row = -1;            // List row under the cursor, -1 when none.
-  int hover_playlist = -1;       // Saved-playlist tab under the cursor.
-  int hover_control = -1;        // Player-bar control index, -1 when none.
-  bool hover_progress = false;   // Cursor is over the progress slider.
-  bool hover_volume = false;     // Cursor is over the volume slider.
+  int hover_nav = -1;          // Top navigation tab under the cursor.
+  int hover_row = -1;          // List row under the cursor, -1 when none.
+  int hover_playlist = -1;     // Saved-playlist tab under the cursor.
+  int hover_control = -1;      // Player-bar control index, -1 when none.
+  bool hover_progress = false; // Cursor is over the progress slider.
+  bool hover_volume = false;   // Cursor is over the volume slider.
 };
-
 
 /// Elapsed time to draw: interpolated live, but frozen on the reference
 /// snapshot in demo mode so screenshots stay reproducible.

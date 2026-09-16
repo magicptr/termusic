@@ -41,6 +41,8 @@ else()
   FetchContent_MakeAvailable(ftxui)
 endif()
 
+find_package(CURL REQUIRED)
+
 # The remaining third-party components are built from pinned sources and linked
 # statically, so a released binary needs no package for any of them: the
 # spectrum FFT (cmake/Kissfft.cmake) and the MPD client library
@@ -50,6 +52,7 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Kissfft.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Libmpdclient.cmake)
 
 add_library(termusic_core STATIC
+  src/agent/music_agent.cpp
   src/app/actions.cpp
   src/app/diagnostics.cpp
   src/app/reconnect.cpp
@@ -60,9 +63,17 @@ add_library(termusic_core STATIC
   src/config/config.cpp
   src/config/paths.cpp
   src/extensions/extension_registry.cpp
+  src/lyrics/lyrics.cpp
+  src/streaming/provider.cpp
+  src/streaming/http_client.cpp
+  src/streaming/service.cpp
+  src/streaming/direct_url_provider.cpp
+  src/streaming/subsonic_provider.cpp
+  src/streaming/stream_store.cpp
   src/ui/metrics.cpp
   src/ui/theme.cpp
   src/ui/widgets.cpp
+  src/ui/visualizer/disc.cpp
   src/ui/visualizer/palette.cpp
   src/ui/visualizer/spectrum.cpp
   src/util/text.cpp
@@ -76,6 +87,7 @@ target_link_libraries(termusic_core PUBLIC
   ftxui::dom
   ftxui::component
   kissfft::kissfft
+  CURL::libcurl
 )
 
 add_library(termusic_runtime STATIC
@@ -180,6 +192,45 @@ if(BUILD_TESTING)
   endif()
   add_test(NAME termusic_core COMMAND termusic_tests)
 
+  # Provider-neutral streaming contracts. No network is used: fake providers
+  # exercise registration, partial catalog failures, cancellation and the
+  # conversion into the existing MPD playback model.
+  add_executable(termusic_streaming_tests tests/streaming_tests.cpp)
+  target_link_libraries(termusic_streaming_tests PRIVATE termusic_core)
+  termusic_enable_warnings(termusic_streaming_tests)
+  add_test(NAME termusic_streaming COMMAND termusic_streaming_tests)
+
+  add_executable(termusic_agent_tests tests/agent_tests.cpp)
+  target_link_libraries(termusic_agent_tests PRIVATE termusic_core)
+  termusic_enable_warnings(termusic_agent_tests)
+  add_test(NAME termusic_agent COMMAND termusic_agent_tests)
+
+  add_executable(termusic_lyrics_tests tests/lyrics_tests.cpp)
+  target_link_libraries(termusic_lyrics_tests PRIVATE termusic_core)
+  termusic_enable_warnings(termusic_lyrics_tests)
+  add_test(NAME termusic_lyrics COMMAND termusic_lyrics_tests)
+
+  add_test(NAME termusic_lyrics_ui
+           COMMAND termusic --demo
+                   --ui-script ${CMAKE_CURRENT_SOURCE_DIR}/tests/lyrics.ui)
+  set_tests_properties(termusic_lyrics_ui PROPERTIES
+                       WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+                       ENVIRONMENT "HOME=${CMAKE_CURRENT_BINARY_DIR}/lyrics-ui-home;XDG_CONFIG_HOME=${CMAKE_CURRENT_BINARY_DIR}/lyrics-ui-home/config;XDG_DATA_HOME=${CMAKE_CURRENT_BINARY_DIR}/lyrics-ui-home/data;XDG_CACHE_HOME=${CMAKE_CURRENT_BINARY_DIR}/lyrics-ui-home/cache")
+
+  add_test(NAME termusic_streaming_ui
+           COMMAND termusic --host 127.0.0.1 --port 6699
+                   --ui-script ${CMAKE_CURRENT_SOURCE_DIR}/tests/streaming.ui)
+  set_tests_properties(termusic_streaming_ui PROPERTIES
+                       WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+                       ENVIRONMENT "HOME=${CMAKE_CURRENT_BINARY_DIR}/stream-ui-home;XDG_CONFIG_HOME=${CMAKE_CURRENT_BINARY_DIR}/stream-ui-home/config;XDG_DATA_HOME=${CMAKE_CURRENT_BINARY_DIR}/stream-ui-home/data;XDG_CACHE_HOME=${CMAKE_CURRENT_BINARY_DIR}/stream-ui-home/cache")
+
+  add_test(NAME termusic_agent_ui
+           COMMAND termusic --demo
+                   --ui-script ${CMAKE_CURRENT_SOURCE_DIR}/tests/agent.ui)
+  set_tests_properties(termusic_agent_ui PROPERTIES
+                       WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+                       ENVIRONMENT "HOME=${CMAKE_CURRENT_BINARY_DIR}/agent-ui-home;XDG_CONFIG_HOME=${CMAKE_CURRENT_BINARY_DIR}/agent-ui-home/config;XDG_DATA_HOME=${CMAKE_CURRENT_BINARY_DIR}/agent-ui-home/data;XDG_CACHE_HOME=${CMAKE_CURRENT_BINARY_DIR}/agent-ui-home/cache")
+
   # The playback-context decisions, against small fakes: the Controller needs a
   # backend and the backend needs MPD, but the rules do not.
   add_executable(termusic_context_tests tests/context_stub.cpp)
@@ -218,6 +269,18 @@ if(BUILD_TESTING)
   endif()
   add_test(NAME termusic_visualizer
            COMMAND termusic_visualizer_tests)
+
+  add_executable(termusic_disc_tests tests/disc_render_test.cpp)
+  target_link_libraries(termusic_disc_tests PRIVATE termusic_core)
+  termusic_enable_warnings(termusic_disc_tests)
+  add_test(NAME termusic_disc COMMAND termusic_disc_tests)
+
+  add_test(NAME termusic_disc_ui
+           COMMAND termusic --demo
+                   --ui-script ${CMAKE_CURRENT_SOURCE_DIR}/tests/disc.ui)
+  set_tests_properties(termusic_disc_ui PROPERTIES
+                       WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+                       ENVIRONMENT "HOME=${CMAKE_CURRENT_BINARY_DIR}/disc-ui-home;XDG_CONFIG_HOME=${CMAKE_CURRENT_BINARY_DIR}/disc-ui-home/config;XDG_DATA_HOME=${CMAKE_CURRENT_BINARY_DIR}/disc-ui-home/data;XDG_CACHE_HOME=${CMAKE_CURRENT_BINARY_DIR}/disc-ui-home/cache")
 
   add_library(termusic_test_plugin MODULE tests/fixture_plugin.cpp)
   target_include_directories(termusic_test_plugin PRIVATE src)

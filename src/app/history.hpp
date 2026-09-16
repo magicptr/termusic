@@ -27,6 +27,9 @@ struct HistoryEntry {
   /// "delete the second A" expressible at all -- a URI is not an identity here.
   long long id = 0;
   std::string uri;
+  std::string source_id;
+  std::string source_track_id;
+  bool is_live_stream = false;
   std::string title;
   std::string artist;
   std::string album;
@@ -50,8 +53,8 @@ public:
   explicit HistoryStore(std::filesystem::path path = {});
 
   /// `$XDG_DATA_HOME/termusic/history.toml`, else
-  /// `~/.local/share/termusic/history.toml`: application-owned data lives in the
-  /// data directory, never in an MPD-owned one.
+  /// `~/.local/share/termusic/history.toml`: application-owned data lives in
+  /// the data directory, never in an MPD-owned one.
   static std::filesystem::path defaultPath();
 
   /// Bounds the store. Applied immediately, so lowering the cap below the

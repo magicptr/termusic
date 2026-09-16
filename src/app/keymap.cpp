@@ -224,7 +224,7 @@ void Keymap::loadDefaults() {
   // of the keymap so no config can bring them back: the configurable Quit
   // sequence, the Help keys, the global `[`/`]`, `+`/`-`, `R`, `u`, `H`, `L`,
   // the arrow aliases for Tree/Tracks movement, Tree's Ctrl+d/Ctrl+u, and the
-  // Settings `r` reset.
+  // Settings `r` reset. Capital L is now the dedicated lyrics overlay.
   bind(KeyContext::Global, Action::Quit, {"q"});
   bind(KeyContext::Global, Action::Cancel, {"Esc"});
   bind(KeyContext::Global, Action::TogglePlay, {"Space"});
@@ -233,6 +233,7 @@ void Keymap::loadDefaults() {
   bind(KeyContext::Global, Action::PageLibrary, {"1"});
   bind(KeyContext::Global, Action::PageSettings, {"2"});
   bind(KeyContext::Global, Action::ToggleImmersive, {"i"});
+  bind(KeyContext::Global, Action::ToggleLyrics, {"L"});
 
   // Tree is Vim-style: j/k move, h/l change pane, PageDown/PageUp are the only
   // half-page keys. The arrow aliases are gone on purpose -- one spelling per

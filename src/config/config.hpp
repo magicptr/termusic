@@ -65,6 +65,14 @@ struct Config {
   int mpd_timeout_ms = kDefaultMpdTimeoutMs;
   bool auto_reconnect = true;
 
+  // --- [subsonic] ---------------------------------------------------------
+  // Compatible with Navidrome, Gonic, Airsonic and other Subsonic servers.
+  bool subsonic_enabled = false;
+  std::string subsonic_url;
+  std::string subsonic_username;
+  std::string subsonic_password;
+  int subsonic_timeout_ms = 8000;
+
   // --- [appearance] --------------------------------------------------------
   std::string theme_name = "default";
   /// Optional directory containing user themes (*.toml). Empty means the

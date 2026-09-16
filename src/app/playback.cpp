@@ -4,15 +4,25 @@
 #include <string>
 
 namespace termusic {
+namespace {
+
+std::string playbackIdentity(const Song &song) {
+  if (!song.source_id.empty() && !song.source_track_id.empty())
+    return "provider:" + song.source_id + ":" + song.source_track_id;
+  return song.uri;
+}
+
+} // namespace
 
 int occurrenceIndexIn(const std::vector<Song> &tracks, const Song &target) {
-  if (target.uri.empty())
+  const std::string identity = playbackIdentity(target);
+  if (identity.empty())
     return -1;
   const int wanted = target.playback_occurrence > 0 ? target.playback_occurrence
                                                     : 1;
   int seen = 0;
   for (std::size_t index = 0; index < tracks.size(); ++index) {
-    if (tracks[index].uri != target.uri)
+    if (playbackIdentity(tracks[index]) != identity)
       continue;
     if (++seen == wanted)
       return static_cast<int>(index);
@@ -23,7 +33,7 @@ int occurrenceIndexIn(const std::vector<Song> &tracks, const Song &target) {
 void assignOccurrenceCounters(std::vector<Song> &tracks) {
   std::map<std::string, int> seen;
   for (Song &song : tracks)
-    song.playback_occurrence = ++seen[song.uri];
+    song.playback_occurrence = ++seen[playbackIdentity(song)];
 }
 
 int playingRowIn(const PlaybackCollection &displayed,

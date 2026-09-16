@@ -40,6 +40,15 @@ timeout_ms = 2000
 # Reconnect on its own, with a bounded retry interval, when the server goes away.
 auto_reconnect = true
 
+[subsonic]
+# Subsonic-compatible online library (Navidrome, Gonic, Airsonic, etc.).
+# Use the server root URL, without /rest. HTTPS is strongly recommended.
+enabled = false
+url = ""
+username = ""
+password = ""
+timeout_ms = 8000
+
 [appearance]
 # Theme id: catppuccin-mocha (default), kanagawa, material-palenight,
 # monokai-pro, github-dark, oxocarbon, catppuccin-macchiato, or a theme file in

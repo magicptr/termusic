@@ -69,6 +69,7 @@ enum class Action {
   SectionNext,
   OpenImmersive,
   ToggleImmersive,
+  ToggleLyrics,
   FocusTree,
   FocusTracks,
   MoveLeft,

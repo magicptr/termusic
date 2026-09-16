@@ -3,6 +3,20 @@
 Termusic is a lightweight, keyboard-driven terminal music player focused on local music playback. It uses Vim-style keyboard shortcuts for efficient music selection and playback.It is designed for Linux users, terminal enthusiasts, Vim users, and anyone who wants a
 fast, distraction-free way to manage and play a local music library without leaving the command line.
 
+The in-tree streaming foundation provides provider-neutral catalog search and
+short-lived playback URL resolution. Direct HTTP(S) streams are supported at
+the framework level and can be managed under **Vault → Streams**. A built-in
+Subsonic provider adds searchable Navidrome/Gonic/Airsonic libraries. See
+[the streaming architecture](docs/streaming.md).
+
+Local sidecar lyrics are available with `L`, including playback-synchronized
+LRC files and ordinary text lyrics. Configure `[library].path` to MPD's local
+music directory; see [Lyrics](docs/lyrics.md).
+
+The top-level **Agent** workspace accepts music requests, searches the complete
+local MPD library and saved Streams together, ranks the combined results, and
+plays the selected result snapshot. See [Music Agent](docs/agent.md).
+
 
 ## Demo
 
@@ -16,21 +30,37 @@ fast, distraction-free way to manage and play a local music library without leav
 - Git
 - Meson
 - Ninja
+- libcurl development headers
 
 Install the build dependencies on Ubuntu / Debian:
 
 ```bash
 sudo apt update
-sudo apt install build-essential cmake git meson ninja-build
+sudo apt install build-essential cmake git meson ninja-build libcurl4-openssl-dev
 ```
 
 Install the build dependencies on Fedora:
 
 ```bash
-sudo dnf install gcc-c++ cmake git meson ninja-build
+sudo dnf install gcc-c++ cmake git meson ninja-build libcurl-devel
 ```
 
 FTXUI, libmpdclient, and kissfft are downloaded automatically during the first build and linked statically, so their development packages do not need to be installed separately.
+
+## Online music library
+
+Termusic can search a Subsonic-compatible server such as Navidrome, Gonic or
+Airsonic. In **Core → General → Online music library**, configure:
+
+- Enable Subsonic
+- Server URL, such as `https://music.example.com` (without `/rest`)
+- Online username and password
+- Save online library
+
+Then open **Agent** and enter `search song name` or `播放 歌名`. Results from
+the online server are labelled `[Stream]`; an explicit play request starts the
+best-ranked local or online result. HTTPS is recommended. The password stays in
+the owner-only configuration file, while API requests use salted tokens.
 
 ## MPD playback backend
 
@@ -205,6 +235,7 @@ If `$HOME/.local/bin` is not in your `PATH`, run termusic directly:
 | `1` | Switch to the music library (Vault) |
 | `2` | Switch to settings (Core) |
 | `i` | Enter or leave the Now Playing view |
+| `L` | Open or close lyrics for the current track |
 
 ### Navigation
 
@@ -221,9 +252,9 @@ If `$HOME/.local/bin` is not in your `PATH`, run termusic directly:
 
 | Shortcut | Action |
 | --- | --- |
-| `/` | Search the current list |
+| `/` | Search the current list, or enter a new request in Agent |
 | `n` / `N` | Jump to the next or previous search result |
-| `a` | Create a playlist |
+| `a` | Create a playlist, or add a URL while viewing Streams |
 | `r` | Rename the selected playlist |
 | `d d` | Delete the selected track or playlist |
 | `y y` | Copy the selected track to the register |

@@ -100,7 +100,8 @@ std::filesystem::path HistoryStore::defaultPath() {
 /// the legacy file is left on disk untouched.
 std::filesystem::path legacyHistoryPath() {
   const char *state = std::getenv("XDG_STATE_HOME");
-  if (state != nullptr && *state != '\0' && std::filesystem::path(state).is_absolute())
+  if (state != nullptr && *state != '\0' &&
+      std::filesystem::path(state).is_absolute())
     return std::filesystem::path(state) / "history.toml";
   const char *home = std::getenv("HOME");
   if (home != nullptr && *home != '\0')
@@ -166,6 +167,12 @@ bool HistoryStore::load(std::string *warning) {
       }
     } else if (key == "uri")
       current.uri = value;
+    else if (key == "source")
+      current.source_id = value;
+    else if (key == "source_track_id")
+      current.source_track_id = value;
+    else if (key == "live")
+      current.is_live_stream = value == "true";
     else if (key == "title")
       current.title = value;
     else if (key == "artist")
@@ -229,6 +236,9 @@ bool HistoryStore::save(std::string *error) const {
       output << "[[entry]]\n"
              << "id = " << entry.id << '\n'
              << "uri = " << quote(entry.uri) << '\n'
+             << "source = " << quote(entry.source_id) << '\n'
+             << "source_track_id = " << quote(entry.source_track_id) << '\n'
+             << "live = " << (entry.is_live_stream ? "true" : "false") << '\n'
              << "title = " << quote(entry.title) << '\n'
              << "artist = " << quote(entry.artist) << '\n'
              << "album = " << quote(entry.album) << '\n'
@@ -264,6 +274,9 @@ void HistoryStore::recordAt(const Song &song, long long played_at) {
   HistoryEntry entry;
   entry.id = next_id_++;
   entry.uri = song.uri;
+  entry.source_id = song.source_id;
+  entry.source_track_id = song.source_track_id;
+  entry.is_live_stream = song.is_live_stream;
   entry.title = song.title;
   entry.artist = song.artist;
   entry.album = song.album;
@@ -281,6 +294,9 @@ std::vector<Song> HistoryStore::songsNewestFirst() const {
   for (auto it = entries_.rbegin(); it != entries_.rend(); ++it) {
     Song song;
     song.uri = it->uri;
+    song.source_id = it->source_id;
+    song.source_track_id = it->source_track_id;
+    song.is_live_stream = it->is_live_stream;
     song.title = it->title;
     song.artist = it->artist;
     song.album = it->album;
@@ -310,10 +326,9 @@ void HistoryStore::clear() {
 bool HistoryStore::removeRecord(long long id) {
   if (id <= 0)
     return false;
-  const auto found = std::find_if(entries_.begin(), entries_.end(),
-                                  [id](const HistoryEntry &entry) {
-                                    return entry.id == id;
-                                  });
+  const auto found =
+      std::find_if(entries_.begin(), entries_.end(),
+                   [id](const HistoryEntry &entry) { return entry.id == id; });
   if (found == entries_.end())
     return false;
   entries_.erase(found);
@@ -336,10 +351,9 @@ int HistoryStore::removeRange(std::size_t first, std::size_t count) {
 bool HistoryStore::hasRecord(long long id) const {
   if (id <= 0)
     return false;
-  return std::any_of(entries_.begin(), entries_.end(),
-                     [id](const HistoryEntry &entry) {
-                       return entry.id == id;
-                     });
+  return std::any_of(
+      entries_.begin(), entries_.end(),
+      [id](const HistoryEntry &entry) { return entry.id == id; });
 }
 
 long long HistoryStore::recordIdAt(std::size_t index) const {

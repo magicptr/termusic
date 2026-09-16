@@ -2,7 +2,9 @@
 
 #include <string>
 #include <string_view>
+#include <stop_token>
 
+#include "agent/music_agent.hpp"
 #include "app/actions.hpp"
 #include "app/diagnostics.hpp"
 #include "app/history.hpp"
@@ -10,6 +12,8 @@
 #include "app/state.hpp"
 #include "backend/mpd_backend.hpp"
 #include "config/config.hpp"
+#include "streaming/service.hpp"
+#include "streaming/stream_store.hpp"
 
 namespace termusic {
 
@@ -72,9 +76,7 @@ public:
   /// makes every collection show zero markers.
   const PlaybackSession &playbackSession() const { return session_; }
   /// The collection that owns playback right now.
-  const PlaybackCollection &playbackContext() const {
-    return session_.context;
-  }
+  const PlaybackCollection &playbackContext() const { return session_.context; }
 
   /// Removes History records by id. Application-owned storage only: no file,
   /// no MPD database entry, no saved playlist and no queue item is touched, and
@@ -90,6 +92,7 @@ public:
   void setVolume(int volume);
   void setSeekStep(int seconds);
   void setVolumeStep(int percent);
+  void setLibraryPath(std::string path);
   void setStartPage(Page page);
   /// [general] stop_on_exit: whether quitting also stops MPD playback.
   void setStopOnExit(bool stop);
@@ -102,6 +105,9 @@ public:
   /// endpoint, because the user typed it and pressed the button.
   void setMpdConnection(std::string host, int port, std::string password,
                         bool auto_reconnect);
+  void setSubsonicSettings(bool enabled, std::string url,
+                           std::string username, std::string password,
+                           int timeout_ms);
 
   bool createPlaylist(std::string_view name);
   bool renameCurrentPlaylist(std::string_view name);
@@ -110,6 +116,23 @@ public:
 
   /// The application-owned playback history.
   const HistoryStore &history() const { return history_; }
+
+  /// User-managed streaming collection. Direct URLs are usable today; future
+  /// catalog providers enter through the same service and store.
+  const std::vector<Song> &streamSongs() const { return stream_songs_; }
+  const streaming::Service &streamingService() const { return streaming_; }
+  /// Queries the complete MPD database and the saved streaming collection,
+  /// then lets the standalone Agent module merge and rank both sources.
+  agent::QueryResult queryAgent(std::string_view prompt);
+  bool hasSearchableStreamingProviders() const;
+  /// Network/provider half of an Agent request. Safe to call on a worker: it
+  /// touches only the thread-safe provider service, never MPD or AppState.
+  agent::StreamingCatalogResult
+  queryAgentStreamingCatalog(std::string_view prompt,
+                             std::stop_token stop = {}) const;
+  bool addDirectStream(std::string url, std::string *error = nullptr);
+  int removeStreamEntries(const std::vector<std::size_t> &positions,
+                          std::string *error = nullptr);
 
   /// Phase C paste. Appends the music register in order and returns how many
   /// tracks were actually appended. A failed paste never clears the register.
@@ -185,12 +208,19 @@ private:
   void reportResult(bool success, std::string_view success_message = {});
   void toast(std::string message);
   void syncSettingsState();
+  void refreshStreamSongs();
+  void enrichStreamingSong(PlayerState &player) const;
+  void configureSubsonicProvider();
 
   MpdBackend &backend_;
   AppState &state_;
   Config &config_;
   ConfigStore &config_store_;
   HistoryStore history_;
+  agent::MusicAgent music_agent_;
+  streaming::Service streaming_;
+  streaming::StreamStore stream_store_;
+  std::vector<Song> stream_songs_;
   /// Effective endpoint for this session. Initialized from the stored config so
   /// a Controller used without `useConnectionSettings()` (the tests) behaves
   /// exactly like the real one.

@@ -30,12 +30,14 @@ enum class Icon {
   Repeat,
   Speaker,
   // Content semantics.
-  Folder,      ///< a closed directory
-  FolderOpen,  ///< a directory that is expanded
-  Library,     ///< the media database
-  History,     ///< the played history
-  Playlist,    ///< a saved playlist
-  Music,       ///< a song row
+  Folder,     ///< a closed directory
+  FolderOpen, ///< a directory that is expanded
+  Library,    ///< the media database
+  History,    ///< the played history
+  Stream,     ///< internet radio or another streaming source
+  Agent,      ///< unified intelligent music selection workspace
+  Playlist,   ///< a saved playlist
+  Music,      ///< a song row
   /// A `core` entry that only SHOWS something: text, documentation, help.
   Document,
   /// A `core` entry that can be CHANGED: a settings module.
@@ -76,9 +78,9 @@ std::string iconGlyph(Icon icon, IconSet set);
 /// dimmer than an ordinary transport button, so "available" and "enabled" are
 /// distinguishable at a glance.
 ftxui::Element transportButton(Icon icon, IconSet set, const Theme &theme,
-                              bool focused, bool highlighted, int box_width,
-                              int box_height, bool hovered = false,
-                              bool toggle = false);
+                               bool focused, bool highlighted, int box_width,
+                               int box_height, bool hovered = false,
+                               bool toggle = false);
 
 /// The single coordinate model shared by rendering, mouse hit-testing and
 /// seeking. Nothing else may re-derive a thumb position from `progress`.

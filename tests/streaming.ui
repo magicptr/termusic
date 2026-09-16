@@ -1,0 +1,14 @@
+# Direct stream management in the real workspace. This test does not call
+# `load`, so it never connects to MPD; it exercises the persisted collection,
+# prompt, renderer and delete path without audio or network access.
+size 110x30
+keys j j
+expect-state browsed=streams node=streams rows=0 pane=tree
+key l
+key a
+type https://radio.example/termusic-test.mp3
+key Enter
+expect-state browsed=streams rows=1 pane=tracks
+expect https://radio.example
+keys d d
+expect-state browsed=streams rows=0 pane=tracks

@@ -35,6 +35,7 @@ struct AppPaths {
 
   std::filesystem::path configFile() const { return config_file; }
   std::filesystem::path historyFile() const;
+  std::filesystem::path streamsFile() const;
   std::filesystem::path pluginDirectory() const;
   std::filesystem::path themeDirectory() const;
   std::filesystem::path logFile() const;

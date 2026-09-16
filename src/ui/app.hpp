@@ -1,7 +1,7 @@
 #pragma once
 
-#include <atomic>
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <condition_variable>
 #include <ctime>
@@ -16,17 +16,19 @@
 #include <ftxui/component/screen_interactive.hpp>
 #include <ftxui/screen/box.hpp>
 
+#include "app/interaction.hpp"
+#include "app/keymap.hpp"
 #include "app/state.hpp"
+#include "app/workspace_tree.hpp"
 #include "backend/mpd_backend.hpp"
 #include "controller/controller.hpp"
 #include "extensions/extension_registry.hpp"
-#include "app/interaction.hpp"
-#include "app/keymap.hpp"
-#include "app/workspace_tree.hpp"
-#include "ui/visualizer/renderer.hpp"
+#include "lyrics/lyrics.hpp"
 #include "ui/core/panel.hpp"
 #include "ui/metrics.hpp"
 #include "ui/theme.hpp"
+#include "ui/visualizer/disc.hpp"
+#include "ui/visualizer/renderer.hpp"
 #include "ui/widgets.hpp"
 #include "visualizer/analyzer.hpp"
 #include "visualizer/beat.hpp"
@@ -34,11 +36,10 @@
 namespace termusic::ui {
 
 class Application {
- public:
+public:
 public:
   Application(AppState &state, Controller &controller, MpdBackend &backend,
-              VisualizerAnalyzer &analyzer,
-              ThemeRegistry &themes,
+              VisualizerAnalyzer &analyzer, ThemeRegistry &themes,
               extensions::ExtensionRegistry &extensions);
   ~Application();
 
@@ -142,6 +143,9 @@ private:
   /// Phase B: the two-pane Library workspace (tree + track buffer).
   ftxui::Element renderWorkspace();
   ftxui::Element renderImmersiveNowPlaying();
+  ftxui::Element renderLyricsOverlay();
+  void refreshLyrics();
+  std::string currentLyricsIdentity() const;
   ftxui::Element renderMain();
   ftxui::Element renderTreePane();
   /// The Sidebar's lower region: the playback collection, title and artist,
@@ -195,7 +199,8 @@ private:
   /// Hint text for an action, read from the keymap so a rebind shows up in the
   /// status bar automatically.
   std::string keyHint(Action action) const;
-  std::string keyHint(const std::vector<KeyContext> &chain, Action action) const;
+  std::string keyHint(const std::vector<KeyContext> &chain,
+                      Action action) const;
 
   // --- Phase C: visual selection, register, paste ---------------------------
   bool visualActive() const;
@@ -209,9 +214,14 @@ private:
   /// occurrences they are. Only application-owned history storage changes:
   /// no file, no Library row, no playlist entry and no queue item is touched.
   void deleteHistoryRows(int lo, int hi);
+  void deleteStreamRows(int lo, int hi);
   void yankCurrentTrack();
   void pasteRegisterToTreeSelection();
   bool handlePlaylistPromptKey(const ftxui::Event &event);
+  bool handleStreamPromptKey(const ftxui::Event &event);
+  bool handleAgentPromptKey(const ftxui::Event &event);
+  void runAgentQuery();
+  void applyAgentResult(agent::QueryResult result, bool allow_autoplay);
   bool handleSearchPromptKey(const ftxui::Event &event);
   bool textEntryActive() const;
   bool songMatches(const Song &song, const std::string &needle) const;
@@ -232,7 +242,9 @@ private:
   /// The row of `activeTracks()` a position in the filtered view stands for.
   int songIndexAt(int view_index) const;
   /// True while the box is open with a query in it (the list is filtered).
-  bool searchActive() const { return search_prompt_ && !search_buffer_.empty(); }
+  bool searchActive() const {
+    return search_prompt_ && !search_buffer_.empty();
+  }
   /// The persistent query editor: created once, never per frame.
   ftxui::Element renderSearchInput();
   bool collectionWritable() const;
@@ -354,6 +366,7 @@ private:
   /// Application never branches on it -- it hands the renderer the shared frame
   /// (spectrum, beat, grid geometry, palette) and draws what comes back.
   std::unique_ptr<ui::VisualizerRenderer> visualizer_;
+  std::unique_ptr<ui::DiscRenderer> disc_;
   /// The beat envelope. Persistence for the animation, never geometry.
   BeatState beat_;
   /// The low-band energy of the last rendered frame, reported by the script
@@ -407,7 +420,6 @@ private:
   ftxui::Component progress_slider_component_;
   ftxui::Component volume_slider_component_;
 
-
   std::vector<std::string> playlist_target_rows_;
   int page_index_ = 1;
   /// Deleting a saved playlist is destructive, so it waits for confirmation.
@@ -436,6 +448,10 @@ private:
   bool ui_slider_test_ = false;
   std::chrono::steady_clock::time_point ui_test_start_{};
   bool help_visible_ = false;
+  bool lyrics_visible_ = false;
+  lyrics::LocalProvider local_lyrics_;
+  lyrics::LoadResult lyrics_result_;
+  std::string lyrics_song_identity_;
   std::string clock_text_;
   std::time_t last_clock_stamp_ = 0;
 
@@ -473,12 +489,21 @@ private:
   /// one of them: it is an internal playback mechanism, never a browsable
   /// collection. Exactly one is active at a time, which is what makes the
   /// header, the writability rules and the hints agree.
-  enum class ActiveCollection { Library, History, Playlist };
+  enum class ActiveCollection { Library, History, Streams, Agent, Playlist };
   ActiveCollection active_collection_ = ActiveCollection::Playlist;
   /// The playback-history view, newest first. Kept out of
   /// `state_.library.songs` so a database refresh can never clobber it.
   std::vector<Song> history_songs_;
   std::size_t history_revision_seen_ = static_cast<std::size_t>(-1);
+  /// The Agent owns its result snapshot independently of Library and Streams,
+  /// so refreshing either source cannot invalidate a selected result row.
+  std::vector<Song> agent_songs_;
+  std::vector<agent::MusicSource> agent_sources_;
+  std::string agent_query_;
+  std::size_t agent_local_matches_ = 0;
+  std::size_t agent_stream_matches_ = 0;
+  std::size_t agent_request_generation_ = 0;
+  std::jthread agent_thread_;
   /// Latches a leading `g` for the section-level `g n` / `g l` chords.
   Keymap keymap_;
   std::vector<std::string> keymap_warnings_;
@@ -503,6 +528,14 @@ private:
   /// becomes the input line.
   bool playlist_prompt_ = false;
   std::string playlist_prompt_text_;
+  /// Inline URL editor opened with `a` while Streams is active.
+  bool stream_prompt_ = false;
+  std::string stream_prompt_text_;
+  /// Natural-language Agent request. FTXUI owns UTF-8 editing and the IME
+  /// cursor; Enter replaces the Agent result snapshot.
+  bool agent_prompt_ = false;
+  std::string agent_prompt_text_;
+  ftxui::Component agent_input_;
 
   // --- Buffer search: the RIGHT list only, filtered -------------------------
   /// `/` input. The box filters the right pane's list and locates a row in it:
@@ -576,6 +609,7 @@ private:
   std::atomic<bool> quitting_{false};
   std::jthread ticker_thread_;
   std::atomic<bool> ticker_fast_{false};
+  std::atomic<int> ticker_fast_interval_ms_{33};
   /// True while the SEARCH LINE owns the keyboard. The analyzer thread reads it
   /// to stop requesting a repaint per analysed frame: the spectrum is not on
   /// screen then, and a repaint storm under an active IME is exactly what makes

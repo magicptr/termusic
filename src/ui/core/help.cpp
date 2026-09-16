@@ -72,7 +72,7 @@ protected:
     line("fails, Core > General shows the endpoint and failure reason.");
 
     heading_row("Structure");
-    line("Two roots. Vault holds music, Core holds settings.");
+    line("Vault holds music, Agent selects across sources, Core holds settings.");
     line("Under Vault: Library is the media database, Playlists are saved");
     line("lists you own, History is what you played.");
     line("Under Core: General, Appearance, Keybindings, Plugins, About,");
@@ -97,6 +97,13 @@ protected:
     line("Up / Down) walk the results. Enter closes the box, restores the");
     line("full list and puts the cursor on the chosen track; Esc cancels.");
     line("n / N walk the accepted match in the full list afterwards.");
+
+    heading_row("Agent");
+    line("Open the top-level Agent entry and type a request such as");
+    line("play jazz or 播放夜曲. Enter searches both the full local MPD");
+    line("library and saved Streams. Results show [Local] / [Stream].");
+    line("播放 / play starts the best result. 本地 or stream only filters");
+    line("the source. Select any result and Enter; / starts a new request.");
 
     heading_row("Playlist workflow");
     line("Create: in either Vault pane press a, type a name, then Enter.");

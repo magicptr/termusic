@@ -93,6 +93,12 @@ std::filesystem::path AppPaths::historyFile() const {
   return data_directory / "history.toml";
 }
 
+std::filesystem::path AppPaths::streamsFile() const {
+  if (data_directory.empty())
+    return {};
+  return data_directory / "streams.toml";
+}
+
 std::filesystem::path AppPaths::pluginDirectory() const {
   if (data_directory.empty())
     return {};

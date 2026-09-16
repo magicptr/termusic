@@ -91,6 +91,7 @@ constexpr auto kActionInfo = std::to_array<ActionInfo>({
     {Action::SectionNext, "section_next", "Next section", false, kNoContext},
     {Action::OpenImmersive, "open_immersive", "Open now playing"},
     {Action::ToggleImmersive, "toggle_immersive", "Toggle now playing"},
+    {Action::ToggleLyrics, "toggle_lyrics", "Toggle lyrics"},
     {Action::FocusTree, "focus_tree", "Focus library tree"},
     {Action::FocusTracks, "focus_tracks", "Focus track list"},
     {Action::MoveLeft, "move_left", "Move Left"},
