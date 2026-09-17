@@ -25,18 +25,18 @@ constexpr double kArmPivotY = -0.72;
 // At rest the cartridge clears the record by only a few terminal cells.
 constexpr double kArmParkAngle = -38.0 * std::numbers::pi / 180.0;
 
-const Color kVinylCore = Color::RGB(12, 12, 15);
-const Color kVinylEdge = Color::RGB(8, 5, 15);
-const Color kLabelLight = Color::RGB(245, 46, 34);
-const Color kLabelMain = Color::RGB(241, 38, 30);
-const Color kLabelShade = Color::RGB(231, 31, 29);
+// Keep the record below the neutral metal arm in the value hierarchy. The
+// grooves still have enough range to read while rotating, but no highlight is
+// bright enough to turn the black vinyl grey.
+const Color kVinylCore = Color::RGB(9, 9, 12);
+const Color kVinylEdge = Color::RGB(5, 3, 10);
 const Color kSpindle = Color::RGB(0, 0, 0);
-const Color kArmShadow = Color::RGB(46, 45, 52);
-const Color kArmDark = Color::RGB(77, 77, 78);
-const Color kArmMid = Color::RGB(128, 124, 131);
-const Color kArmLight = Color::RGB(199, 197, 206);
-const Color kArmHighlight = Color::RGB(232, 231, 239);
-const Color kArmPin = Color::RGB(184, 183, 190);
+const Color kArmShadow = Color::RGB(40, 39, 45);
+const Color kArmDark = Color::RGB(68, 68, 70);
+const Color kArmMid = Color::RGB(112, 109, 116);
+const Color kArmLight = Color::RGB(174, 172, 181);
+const Color kArmHighlight = Color::RGB(207, 206, 214);
+const Color kArmPin = Color::RGB(160, 159, 166);
 
 struct PaintCell {
   std::string glyph;
@@ -60,16 +60,16 @@ Color graphite(double radius, double angle, double phase) {
   const double band_fraction = band_position - std::floor(band_position);
   const double axis = std::fabs(std::cos(angle - kLightAxis));
   const double broad_light = std::pow(axis, 5.2);
-  const double band_step = (band % 2 == 0 ? 5.0 : -2.0) + band * 0.45;
-  const double groove_cut = band_fraction < 0.16 ? -7.0 : 0.0;
+  const double band_step = (band % 2 == 0 ? 3.0 : -2.0) + band * 0.25;
+  const double groove_cut = band_fraction < 0.16 ? -5.0 : 0.0;
 
   // A small travelling glint makes rotation legible without rotating the
   // reference's fixed upper-left/lower-right studio light.
   const double travelling = std::cos(angle - phase + band * 0.61);
-  const double glint = travelling > 0.90 ? (travelling - 0.90) * 48.0 : 0.0;
+  const double glint = travelling > 0.91 ? (travelling - 0.91) * 22.0 : 0.0;
   const double level =
-      28.0 + broad_light * 76.0 + band_step + groove_cut + glint;
-  const double cool = (1.0 - broad_light) * 2.0;
+      16.0 + broad_light * 47.0 + band_step + groove_cut + glint;
+  const double cool = (1.0 - broad_light) * 1.2;
   return Color::RGB(channel(static_cast<int>(std::lround(level))),
                     channel(static_cast<int>(std::lround(level))),
                     channel(static_cast<int>(std::lround(level + cool))));
@@ -278,6 +278,16 @@ Element DiscRenderer::render(const DiscFrame &frame) {
     m.layout(frame.columns, frame.rows);
   std::fill(m.canvas.begin(), m.canvas.end(), PaintCell{});
 
+  // The paper label is the only themed part of the record. Its brightest face
+  // is the theme accent itself; the other two faces are derived from it, so a
+  // theme switch preserves the pixel-art lighting instead of flattening the
+  // centre into one solid colour.
+  const Color label_light = frame.theme.accent_primary;
+  const Color label_main =
+      Color::Interpolate(0.12F, label_light, Color::Black);
+  const Color label_shade =
+      Color::Interpolate(0.28F, label_light, Color::Black);
+
   for (int y = 0; y < m.rows; ++y) {
     for (int x = 0; x < m.columns; ++x) {
       const std::size_t index = static_cast<std::size_t>(y * m.columns + x);
@@ -295,10 +305,10 @@ Element DiscRenderer::render(const DiscFrame &frame) {
 
       if (radius <= 0.285) {
         const double light = std::cos(angle + 2.25);
-        const Color red = light > 0.42   ? kLabelLight
-                          : light < -0.35 ? kLabelShade
-                                         : kLabelMain;
-        m.paint(x, y, "█", red, 5);
+        const Color label = light > 0.42    ? label_light
+                            : light < -0.35 ? label_shade
+                                           : label_main;
+        m.paint(x, y, "█", label, 5);
       }
       constexpr double kSpindleRadius = 0.060;
       constexpr double kSpindleSolidRadius = 0.025;

@@ -37,10 +37,6 @@ protected:
     line("kissfft 131.2.0 (BSD-3-Clause) spectrum analysis");
     line("All three are linked statically into this binary.");
 
-    items.push_back(heading("MPD"));
-    line("termusic never starts, stops, installs or configures the MPD");
-    line("daemon; that lifecycle belongs to you or to your system.");
-
     list_.set(std::move(items));
   }
 };

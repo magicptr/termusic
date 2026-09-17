@@ -72,6 +72,8 @@ struct Config {
   std::string theme_directory;
   /// "nerd" (default) or "unicode" for terminals without a Nerd Font.
   std::string icon_set = "nerd";
+  /// The immersive visualization restored on startup.
+  DisplayMode display_mode = DisplayMode::Spectrum;
   /// "braille" (A), "half" (B) or "bg" (C).
   // Default is the verified renderer; "braille" is experimental and currently
   // renders blank, so it is opt-in only via --slider braille.
@@ -120,6 +122,8 @@ struct Config {
 /// Converts Page to/from stable config values.
 std::string_view pageId(Page page);
 std::optional<Page> parsePage(std::string_view value);
+std::string_view displayModeId(DisplayMode mode);
+std::optional<DisplayMode> parseDisplayMode(std::string_view value);
 
 /// The outcome of reading config.toml.
 ///

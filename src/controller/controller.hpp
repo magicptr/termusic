@@ -91,6 +91,8 @@ public:
   void setSeekStep(int seconds);
   void setVolumeStep(int percent);
   void setStartPage(Page page);
+  /// Persist the visualization selected in Appearance and apply it live.
+  void setDisplayMode(DisplayMode mode);
   /// [general] stop_on_exit: whether quitting also stops MPD playback.
   void setStopOnExit(bool stop);
   void setVisualizerSensitivity(float sensitivity);

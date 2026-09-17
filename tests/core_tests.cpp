@@ -12,6 +12,9 @@
 
 #include <iostream>
 
+#include <ftxui/dom/node.hpp>
+#include <ftxui/screen/screen.hpp>
+
 #include "app/history.hpp"
 #include "app/reconnect.hpp"
 #include "app/playback.hpp"
@@ -822,6 +825,10 @@ int main() {
     assert(keymap.primaryBinding(immersive, Action::Next) == "l");
     assert(keymap.primaryBinding(immersive, Action::SeekBackward) == ",");
     assert(keymap.primaryBinding(immersive, Action::SeekForward) == ".");
+    assert(keymap.primaryBinding(immersive, Action::ToggleRepeat) == "r");
+    assert(keymap.primaryBinding(std::vector<KeyContext>{KeyContext::Global},
+                                 Action::ToggleRepeat)
+               .empty());
 
 
     const auto binds = [&](KeyContext context, const char *action,
@@ -1061,10 +1068,12 @@ int main() {
     assert(resolvesIn(tracks, "PageDown").action == Action::HalfPageDown);
     assert(resolvesIn(tracks, "PageUp").action == Action::HalfPageUp);
 
-    // 3. Settings has no `r` reset. The key falls through to Global's repeat
-    //    toggle instead of silently resetting a binding.
-    assert(resolvesIn(settings, "r").action == Action::ToggleRepeat);
+    // 3. Settings has no `r` reset and repeat belongs only to Immersive.
+    assert(resolvesIn(settings, "r").action == Action::None);
     assert(resolvesTo(KeyContext::Settings, "r").action != Action::ResetBinding);
+    assert(resolvesTo(KeyContext::Immersive, "r").action ==
+           Action::ToggleRepeat);
+    assert(resolvesIn(global, "r").action == Action::None);
     {
       Keymap defaults;
       defaults.loadDefaults();
@@ -1092,7 +1101,9 @@ int main() {
     assert(!actionConfigurableIn(Action::Next, KeyContext::Global));
     assert(!actionConfigurableIn(Action::VolumeUp, KeyContext::Global));
     // The entries the user keeps.
-    assert(actionConfigurableIn(Action::ToggleRepeat, KeyContext::Global));
+    assert(actionConfigurableIn(Action::ToggleRepeat,
+                                KeyContext::Immersive));
+    assert(!actionConfigurableIn(Action::ToggleRepeat, KeyContext::Global));
     assert(actionConfigurableIn(Action::ToggleShuffle, KeyContext::Global));
     assert(actionConfigurableIn(Action::MoveDown, KeyContext::Tree));
     assert(actionConfigurableIn(Action::MoveDown, KeyContext::Tracks));
@@ -1124,7 +1135,13 @@ int main() {
                                    {"z"}));
       // Nothing was mutated by the refusals.
       assert(legacy.validate().empty());
-      assert(legacy.primaryBinding(global, Action::ToggleRepeat) == "r");
+      assert(legacy.primaryBinding(global, Action::ToggleRepeat).empty());
+      assert(legacy.primaryBinding(KeyContext::Immersive,
+                                   Action::ToggleRepeat) == "r");
+      std::string repeat_problem;
+      assert(!legacy.applyOverride(KeyContext::Global, "toggle_repeat", {"r"},
+                                   &repeat_problem));
+      assert(repeat_problem.find("not configurable") != std::string::npos);
       assert(legacy.primaryBinding(global, Action::ToggleImmersive) == "i");
     }
 
@@ -1174,11 +1191,11 @@ int main() {
       assert(!showsRow(map, KeyContext::Global, Action::SectionNext));
       assert(!showsRow(map, KeyContext::Settings, Action::ResetBinding));
       assert(!showsRow(map, KeyContext::Settings, Action::ResetAllBindings));
-      // The complete Global section after the cleanup: seven editable rows.
+      // The complete Global section after repeat moved to Immersive.
       const std::vector<std::pair<Action, const char *>> expected_global = {
           {Action::PageLibrary, "1"},   {Action::PageSettings, "2"},
-          {Action::TogglePlay, "Space"}, {Action::ToggleRepeat, "r"},
-          {Action::ToggleShuffle, "s"}, {Action::Cancel, "Esc"},
+          {Action::TogglePlay, "Space"}, {Action::ToggleShuffle, "s"},
+          {Action::Cancel, "Esc"},
           {Action::ToggleImmersive, "i"},
       };
       int rows = 0;
@@ -1215,6 +1232,7 @@ int main() {
       assert(map.primaryBinding(immersive, Action::VolumeUp) == "k");
       assert(map.primaryBinding(immersive, Action::SeekBackward) == ",");
       assert(map.primaryBinding(immersive, Action::SeekForward) == ".");
+      assert(map.primaryBinding(immersive, Action::ToggleRepeat) == "r");
       assert(map.primaryBinding(immersive, Action::TogglePlay) == "Space");
       assert(map.primaryBinding(immersive, Action::ToggleImmersive) == "i");
     }
@@ -1224,6 +1242,7 @@ int main() {
   config.mpd_host = "musicbox";
   config.visualizer_fifo = "/tmp/test-mpd.fifo";
   config.theme_name = "monokai-pro";
+  config.display_mode = DisplayMode::Disc;
   config.mpd_password = "secret#value\\\"with\\slashes\t";
   config.keybindings["global"]["toggle_immersive"] = {"i", "Ctrl+i"};
   config.keybindings["immersive"]["seek_backward"] = {","};
@@ -1234,6 +1253,7 @@ int main() {
   assert(loaded.mpd_host == "musicbox");
   assert(loaded.visualizer_fifo == "/tmp/test-mpd.fifo");
   assert(loaded.theme_name == "monokai-pro");
+  assert(loaded.display_mode == DisplayMode::Disc);
   assert(loaded.mpd_password == config.mpd_password);
   assert(loaded.keybindings.at("global").at("toggle_immersive") ==
          config.keybindings.at("global").at("toggle_immersive"));
@@ -1285,6 +1305,7 @@ int main() {
       assert(parsed.auto_reconnect == defaults.auto_reconnect);
       assert(parsed.theme_name == defaults.theme_name);
       assert(parsed.icon_set == defaults.icon_set);
+      assert(parsed.display_mode == defaults.display_mode);
       // `visualizer.style` and `visualizer.enabled` no longer exist: the
       // Spectrum is the only visualizer and the display mode decides whether it
       // is shown, so a stored value for either is read and ignored. The keys
@@ -1372,18 +1393,20 @@ int main() {
       out << "schema_version = 1\n"
              "[mpd]\nport = 99999\ntimeout_ms = -5\n"
              "[general]\nseek_step = 900\nvolume_step = 0\n"
+             "[appearance]\ndisplay = \"turntable\"\n"
              "[visualizer]\nbar_density = 4000\nrefresh_hz = 2\n"
              "[history]\nmax_entries = 0\n";
       out.close();
       ConfigStore local_store(file);
       const ConfigLoad load = local_store.loadDetailed();
       assert(!load.ok());
-      assert(load.errors.size() >= 6U);
+      assert(load.errors.size() >= 7U);
       // Every invalid value falls back to the SAFE default, not to a clamp.
       assert(load.config.mpd_port == kDefaultMpdPort);
       assert(load.config.mpd_timeout_ms == kDefaultMpdTimeoutMs);
       assert(load.config.seek_step == 5);
       assert(load.config.volume_step == 5);
+      assert(load.config.display_mode == DisplayMode::Spectrum);
       assert(load.config.visualizer_bar_density == 64);
       assert(load.config.visualizer_refresh_hz == 60);
       assert(load.config.history_max_entries == 100);
@@ -1570,7 +1593,7 @@ int main() {
   }
 
   ui::ThemeRegistry themes;
-  assert(themes.list().size() == 7U);
+  assert(themes.list().size() == 8U);
   // Catppuccin Mocha is the default theme, and it is registered first so that
   // an unknown or legacy id (an old `theme = "nord"` configuration included)
   // resolves to it.
@@ -1604,6 +1627,20 @@ int main() {
     assert(kanagawa.background != mocha.background);
     assert(kanagawa.text != mocha.text);
     assert(kanagawa.border != mocha.border);
+
+    // Crimson is built only from the supplied warm near-black, red and grey
+    // ramp; these load-bearing roles pin the public palette contract.
+    const ui::Theme &crimson = themes.resolve("crimson");
+    assert(crimson.background == ftxui::Color::RGB(0x10, 0x10, 0x10));
+    assert(crimson.panel == ftxui::Color::RGB(0x18, 0x14, 0x14));
+    assert(crimson.accent_primary == ftxui::Color::RGB(0xE5, 0x48, 0x4D));
+    assert(crimson.accent_secondary == ftxui::Color::RGB(0xFF, 0x5A, 0x5F));
+    assert(crimson.accent_purple == ftxui::Color::RGB(0x8F, 0x28, 0x31));
+    assert(crimson.text == ftxui::Color::RGB(0xE8, 0xE3, 0xE3));
+    assert(crimson.muted_text == ftxui::Color::RGB(0x8F, 0x85, 0x85));
+    assert(crimson.weak_text == ftxui::Color::RGB(0x51, 0x4A, 0x4A));
+    assert(crimson.border == ftxui::Color::RGB(0xC9, 0xC3, 0xC3));
+    assert(crimson.input_border == crimson.border);
   }
 
   VisualizerAnalyzer analyzer;
@@ -1726,10 +1763,11 @@ int main() {
   {
     termusic::ui::ThemeRegistry builtins;
     const auto list = builtins.list();
-    assert(list.size() == 7);
-    const std::array<std::string_view, 7> expected = {
+    assert(list.size() == 8);
+    const std::array<std::string_view, 8> expected = {
         "catppuccin-mocha", "kanagawa", "material-palenight", "monokai-pro",
-        "github-dark",      "oxocarbon", "catppuccin-macchiato"};
+        "github-dark",      "oxocarbon", "crimson",
+        "catppuccin-macchiato"};
     for (std::size_t index = 0; index < expected.size(); ++index) {
       assert(list[index].id == expected[index]);
       assert(!list[index].name.empty());
@@ -1798,6 +1836,24 @@ int main() {
     assert(iconGlyph(Icon::Folder, IconSet::NerdFont) !=
            iconGlyph(Icon::FolderOpen, IconSet::NerdFont));
     assert(iconGlyph(Icon::Music, IconSet::Unicode) == "\u266a");
+
+    // Repeat is a persistent immersive status indicator: its glyph and
+    // geometry stay fixed while the real MPD flag changes only its colour.
+    const termusic::ui::Theme theme;
+    ftxui::Screen repeat_off(5, 1);
+    ftxui::Render(repeat_off,
+                  termusic::ui::transportButton(Icon::Repeat, IconSet::Unicode,
+                                                theme, false, false, 5, 1,
+                                                false, true));
+    ftxui::Screen repeat_on(5, 1);
+    ftxui::Render(repeat_on,
+                  termusic::ui::transportButton(Icon::Repeat, IconSet::Unicode,
+                                                theme, false, true, 5, 1,
+                                                false, true));
+    assert(repeat_off.CellAt(2, 0).character ==
+           repeat_on.CellAt(2, 0).character);
+    assert(repeat_off.CellAt(2, 0).foreground_color == theme.weak_text);
+    assert(repeat_on.CellAt(2, 0).foreground_color == theme.accent_primary);
     std::printf("icons:     both families, one cell, no emoji\n");
   }
 

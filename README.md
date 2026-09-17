@@ -191,6 +191,26 @@ If `$HOME/.local/bin` is not in your `PATH`, run termusic directly:
 "$HOME/.local/bin/termusic"
 ```
 
+## Uninstall
+
+Remove a system-wide installation:
+
+```bash
+sudo cmake --build build --target uninstall
+```
+
+Remove an installation made for the current user:
+
+```bash
+cmake --build build --target uninstall
+```
+
+Run the uninstall command from the same build directory that was used by
+`cmake --install`. The generated install manifest records the exact files and
+prefix used by that installation, so uninstall removes only termusic's files
+and leaves shared directories such as `/usr/local/bin` and `$HOME/.local/bin`
+in place.
+
 ## Keyboard Shortcuts
 
 ### Global
@@ -200,7 +220,6 @@ If `$HOME/.local/bin` is not in your `PATH`, run termusic directly:
 | `q` | Quit |
 | `Esc` | Cancel or go back |
 | `Space` | Play or pause |
-| `r` | Toggle repeat |
 | `s` | Toggle shuffle |
 | `1` | Switch to the music library (Vault) |
 | `2` | Switch to settings (Core) |
@@ -240,6 +259,7 @@ In visual selection mode, use `j` and `k` to extend the selection, press `y` to 
 | `h` / `l` | Previous or next track |
 | `j` / `k` | Decrease or increase the volume |
 | `,` / `.` | Seek backward or forward |
+| `r` | Toggle repeat |
 | `Space` | Play or pause |
 | `i` / `Esc` | Leave the Now Playing view |
 

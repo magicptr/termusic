@@ -55,6 +55,7 @@ UiMetrics computeMetrics(int width, int height, int transport_gap,
   m.show_version = large;
   m.show_clock = !minimal;
   m.show_shuffle = !minimal;
+  m.show_repeat = !minimal;
   m.show_volume = !minimal && m.width >= 72;
   m.show_album_column = large || medium;
 
@@ -91,10 +92,9 @@ UiMetrics computeMetrics(int width, int height, int transport_gap,
   m.playback_button_width = (m.width >= 70) ? 5 : 4;
   m.playback_button_gap =
       std::clamp(transport_gap, 0, 4);
-  // ONE playback-mode control (Shuffle), then previous, play and next. The
-  // cells Repeat used to occupy are not left blank: they are simply not
-  // reserved, so the progress track below grows into them.
-  m.controls_width = 4 * m.playback_button_width + 3 * m.playback_button_gap;
+  // Shuffle, previous, play, next and Repeat form one compact cluster. Both
+  // stateful mode icons disappear at Minimal size, leaving the core transport.
+  m.controls_width = 5 * m.playback_button_width + 4 * m.playback_button_gap;
   m.player_padding = (m.width >= 100) ? 2 : 1;
   const bool tight_player = m.width < 132;
   m.player_gap_small = tight_player ? 1 : 2;

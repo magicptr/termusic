@@ -411,6 +411,70 @@ Theme catppuccinMacchiatoTheme() {
   return theme;
 }
 
+/// Crimson: a deliberately compact red ramp over near-black warm surfaces.
+/// Every semantic role is mapped from the nine supplied colours, so no blue,
+/// purple or cool-grey role leaks in from the default theme.
+Theme crimsonTheme() {
+  Theme theme;
+  const auto near_black = ftxui::Color::RGB(0x10, 0x10, 0x10);
+  const auto deep_black = ftxui::Color::RGB(0x18, 0x14, 0x14);
+  const auto crimson = ftxui::Color::RGB(0xE5, 0x48, 0x4D);
+  const auto coral = ftxui::Color::RGB(0xFF, 0x5A, 0x5F);
+  const auto wine = ftxui::Color::RGB(0x8F, 0x28, 0x31);
+  const auto warm_white = ftxui::Color::RGB(0xE8, 0xE3, 0xE3);
+  const auto muted_red = ftxui::Color::RGB(0x8F, 0x85, 0x85);
+  const auto dark_text = ftxui::Color::RGB(0x51, 0x4A, 0x4A);
+  const auto pale_border = ftxui::Color::RGB(0xC9, 0xC3, 0xC3);
+
+  theme.background = near_black;
+  theme.background_deep = near_black;
+  theme.panel = deep_black;
+  theme.surface = deep_black;
+  theme.text = warm_white;
+  theme.header_text = warm_white;
+  theme.muted_text = muted_red;
+  theme.weak_text = dark_text;
+  theme.border = pale_border;
+  theme.border_dim = dark_text;
+  theme.divider = dark_text;
+  theme.separator = dark_text;
+  theme.accent_primary = crimson;
+  theme.accent_secondary = coral;
+  theme.accent_purple = wine;
+  theme.brand = coral;
+  theme.frame = pale_border;
+  theme.selected_fg = near_black;
+  theme.selected_bg = crimson;
+  theme.tree_cursor_bg = coral;
+  theme.tree_cursor_fg = near_black;
+  theme.track_cursor_bg = crimson;
+  theme.track_cursor_fg = near_black;
+  theme.active_collection = crimson;
+  theme.playing = coral;
+  theme.tree_item = muted_red;
+  theme.hover_bg = deep_black;
+  theme.hover_border = coral;
+  theme.visual_selection_bg = wine;
+  theme.visual_cursor_bg = crimson;
+  theme.progress_filled = crimson;
+  theme.progress_filled_end = coral;
+  theme.progress_empty = deep_black;
+  theme.progress_knob = coral;
+  theme.volume_fill = coral;
+  theme.volume_empty = deep_black;
+  theme.icon = warm_white;
+  theme.spectrum_low = wine;
+  theme.spectrum_high = crimson;
+  theme.spectrum_peak = coral;
+  theme.success = warm_white;
+  theme.warning = coral;
+  theme.error = crimson;
+  theme.info = pale_border;
+  theme.ok = warm_white;
+  theme.input_border = pale_border;
+  return theme;
+}
+
 } // namespace
 
 ThemeRegistry::ThemeRegistry() {
@@ -428,6 +492,7 @@ ThemeRegistry::ThemeRegistry() {
   registerTheme("monokai-pro", "Monokai Pro", monokaiProTheme());
   registerTheme("github-dark", "GitHub Dark", githubDarkTheme());
   registerTheme("oxocarbon", "Oxocarbon", oxocarbonTheme());
+  registerTheme("crimson", "Crimson", crimsonTheme());
   registerTheme("catppuccin-macchiato", "Catppuccin Macchiato",
                 catppuccinMacchiatoTheme());
 }

@@ -19,20 +19,25 @@ public:
 
 protected:
   void fill(const CoreContext &context) override {
+    const bool spectrum =
+        context.state.display_mode == DisplayMode::Spectrum;
+    spectrum_controls_visible_ = spectrum;
     std::vector<std::string> themes;
     themes.reserve(context.themes.list().size());
     for (const ThemeInfo &info : context.themes.list())
       themes.push_back(info.id);
 
-    // The palette is a choice of its own: the display draws in any of the
-    // ramps, and the list comes from its registry, so a new ramp appears here
-    // without touching this file.
+    // Spectrum-only controls are not built while Disc is active. Besides
+    // making the hierarchy clear, this prevents keys from changing settings
+    // that have no effect on the visible record.
     std::vector<std::string> palettes;
     std::vector<std::string> palette_ids;
-    for (const termusic::ui::VisualizerPalette &palette :
-         termusic::ui::visualizerPalettes()) {
-      palettes.emplace_back(palette.label);
-      palette_ids.emplace_back(palette.id);
+    if (spectrum) {
+      for (const termusic::ui::VisualizerPalette &palette :
+           termusic::ui::visualizerPalettes()) {
+        palettes.emplace_back(palette.label);
+        palette_ids.emplace_back(palette.id);
+      }
     }
 
     std::vector<SettingItem> items;
@@ -60,7 +65,7 @@ protected:
           context_->theme_changed();
         },
         "Seven presets ship with Termusic; Catppuccin Mocha is the default."));
-    items.push_back(heading("Display"));
+    items.push_back(heading("Visualization"));
     items.push_back(toggle(
         "Spectrum",
         [this] {
@@ -68,7 +73,7 @@ protected:
         },
         [this](bool value) {
           if (value)
-            context_->state.display_mode = DisplayMode::Spectrum;
+            context_->controller.setDisplayMode(DisplayMode::Spectrum);
         },
         "Show the music spectrum visualization."));
     items.push_back(toggle(
@@ -76,10 +81,12 @@ protected:
         [this] { return context_->state.display_mode == DisplayMode::Disc; },
         [this](bool value) {
           if (value)
-            context_->state.display_mode = DisplayMode::Disc;
+            context_->controller.setDisplayMode(DisplayMode::Disc);
         },
         "Show an animated vinyl record and tonearm."));
-    items.push_back(select(
+    if (spectrum) {
+      items.push_back(heading("Spectrum settings"));
+      items.push_back(select(
         "Palette", std::move(palettes),
         [this, palette_ids] {
           const std::string active =
@@ -100,7 +107,7 @@ protected:
           context_->visualizer_changed();
         },
         "The colour ramp the Spectrum draws in."));
-    items.push_back(number(
+      items.push_back(number(
         "Sensitivity",
         [this] {
           return static_cast<int>(context_->config().visualizer_sensitivity *
@@ -113,14 +120,14 @@ protected:
           context_->visualizer_changed();
         },
         1, 50, 1, "\u00d7", 10, "How quickly the bars follow the music."));
-    items.push_back(number(
+      items.push_back(number(
         "Refresh", [this] { return context_->config().visualizer_refresh_hz; },
         [this](int value) {
           context_->controller.setVisualizerRefreshHz(value);
           context_->visualizer_changed();
         },
         5, 60, 1, " Hz", 1, "How often the spectrum is recomputed."));
-    items.push_back(number(
+      items.push_back(number(
         "Bands", [this] { return context_->config().visualizer_bar_density; },
         [this](int value) {
           context_->controller.setVisualizerDensity(value);
@@ -128,8 +135,17 @@ protected:
         },
         32, 96, 1, " bands", 1,
         "How many frequency bands the analyzer produces."));
+    }
     list_.set(std::move(items));
   }
+
+  bool itemsChanged(const CoreContext &context) const override {
+    return spectrum_controls_visible_ !=
+           (context.state.display_mode == DisplayMode::Spectrum);
+  }
+
+private:
+  bool spectrum_controls_visible_ = false;
 };
 
 } // namespace

@@ -177,12 +177,23 @@ SettingItem disabled(std::string label, std::string help) {
 // --- The list engine --------------------------------------------------------
 
 void SettingList::set(std::vector<SettingItem> items) {
+  std::string selected_label;
+  if (selected_ >= 0 && selected_ < static_cast<int>(items_.size()))
+    selected_label = items_[static_cast<std::size_t>(selected_)].label;
   items_ = std::move(items);
   editing_ = -1;
   buffer_.clear();
   open_select_ = -1;
   candidate_ = 0;
   selected_ = nextSelectable(-1, 1);
+  if (!selected_label.empty()) {
+    const auto restored = std::find_if(
+        items_.begin(), items_.end(), [&](const SettingItem &item) {
+          return item.selectable() && item.label == selected_label;
+        });
+    if (restored != items_.end())
+      selected_ = static_cast<int>(std::distance(items_.begin(), restored));
+  }
   scroll_ = 0;
 }
 

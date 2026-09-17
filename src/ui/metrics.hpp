@@ -204,9 +204,10 @@ struct UiMetrics {
   bool show_version = true;
   bool show_clock = true;
   bool show_album_column = true;
-  /// The Player Bar carries ONE playback-mode control (Shuffle). Repeat is not
-  /// exposed there any more; the action itself still exists in the keymap.
+  /// Playback-mode controls are hidden only at the smallest terminal size,
+  /// where previous/play/next must retain usable hit targets.
   bool show_shuffle = true;
+  bool show_repeat = true;
   bool show_volume = true;
   /// True while the bottom interaction box (search / prompt / confirm) is up.
   bool show_bottom_box = true;

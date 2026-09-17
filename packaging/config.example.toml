@@ -42,18 +42,19 @@ auto_reconnect = true
 
 [appearance]
 # Theme id: catppuccin-mocha (default), kanagawa, material-palenight,
-# monokai-pro, github-dark, oxocarbon, catppuccin-macchiato, or a theme file in
-# `theme_directory` below.
+# monokai-pro, github-dark, oxocarbon, crimson, catppuccin-macchiato, or a theme
+# file in `theme_directory` below.
 theme = "default"
 # Empty means the `themes` directory next to this file.
 theme_directory = ""
 # "nerd" needs a patched font; "unicode" is the safe fallback.
 icons = "nerd"
+# Immersive visualization restored at startup: "spectrum" or "disc".
+display = "spectrum"
 
 [visualizer]
-# The Spectrum is the only visualizer: there is no style to choose and no
-# switch to turn it off. A legacy `enabled` or `style` key is still accepted
-# and ignored, so an old configuration keeps loading.
+# Spectrum settings. A legacy `enabled` or `style` key is still accepted and
+# ignored, so an old configuration keeps loading.
 # theme | ice | fire | rainbow
 palette = "theme"
 refresh_hz = 60

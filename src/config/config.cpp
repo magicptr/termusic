@@ -216,7 +216,8 @@ bool keyIsKnown(const std::string &section, const std::string &key) {
           {"mpd",
            {"host", "port", "password", "timeout_ms", "auto_reconnect"}},
           {"appearance",
-           {"theme", "theme_directory", "icons", "slider", "transport_gap"}},
+           {"theme", "theme_directory", "icons", "display", "slider",
+            "transport_gap"}},
           {"theme", {"name", "directory"}},
           {"visualizer",
            {"enabled", "style", "palette", "refresh_hz", "sensitivity",
@@ -316,7 +317,16 @@ void parseDocument(std::istream &input, ConfigLoad *load) {
         readBool(value, true, &config.auto_reconnect, diagnostics, "mpd",
                  "auto_reconnect");
     } else if (section == "appearance" || section == "theme") {
-      if (key == "theme" || key == "name")
+      if (section == "appearance" && key == "display") {
+        const std::string display = unquote(value);
+        const auto parsed = parseDisplayMode(display);
+        if (parsed)
+          config.display_mode = *parsed;
+        else
+          diagnostics.invalid("appearance", "display",
+                              "\"" + display + "\" is not spectrum or disc",
+                              "\"spectrum\"");
+      } else if (key == "theme" || key == "name")
         readString(value, &config.theme_name);
       else if (key == "theme_directory" || key == "directory")
         readString(value, &config.theme_directory);
@@ -421,7 +431,9 @@ std::string serialize(const Config &config) {
          << "[appearance]\n"
          << "theme = " << quote(config.theme_name) << '\n'
          << "theme_directory = " << quote(config.theme_directory) << '\n'
-         << "icons = " << quote(config.icon_set) << "\n\n"
+         << "icons = " << quote(config.icon_set) << '\n'
+         << "display = " << quote(displayModeId(config.display_mode))
+         << "\n\n"
          << "[visualizer]\n"
          << "palette = " << quote(config.visualizer_palette) << '\n'
          << "refresh_hz = " << config.visualizer_refresh_hz << '\n'
@@ -527,6 +539,18 @@ std::string_view pageId(Page page) { return pageToken(page); }
 
 std::optional<Page> parsePage(std::string_view value) {
   return pageFromToken(value);
+}
+
+std::string_view displayModeId(DisplayMode mode) {
+  return mode == DisplayMode::Disc ? "disc" : "spectrum";
+}
+
+std::optional<DisplayMode> parseDisplayMode(std::string_view value) {
+  if (value == "spectrum")
+    return DisplayMode::Spectrum;
+  if (value == "disc")
+    return DisplayMode::Disc;
+  return std::nullopt;
 }
 
 ConfigStore::ConfigStore(std::filesystem::path path) : path_(std::move(path)) {}
@@ -719,18 +743,19 @@ auto_reconnect = true
 
 [appearance]
 # Theme id: catppuccin-mocha (default), kanagawa, material-palenight,
-# monokai-pro, github-dark, oxocarbon, catppuccin-macchiato, or a theme file in
-# `theme_directory` below.
+# monokai-pro, github-dark, oxocarbon, crimson, catppuccin-macchiato, or a theme
+# file in `theme_directory` below.
 theme = "default"
 # Empty means the `themes` directory next to this file.
 theme_directory = ""
 # "nerd" needs a patched font; "unicode" is the safe fallback.
 icons = "nerd"
+# Immersive visualization restored at startup: "spectrum" or "disc".
+display = "spectrum"
 
 [visualizer]
-# The Spectrum is the only visualizer: there is no style to choose and no
-# switch to turn it off. A legacy `enabled` or `style` key is still accepted
-# and ignored, so an old configuration keeps loading.
+# Spectrum settings. A legacy `enabled` or `style` key is still accepted and
+# ignored, so an old configuration keeps loading.
 # theme | ice | fire | rainbow
 palette = "theme"
 refresh_hz = 60

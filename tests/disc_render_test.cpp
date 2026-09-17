@@ -17,7 +17,11 @@ using termusic::ui::kDiscCellAspect;
 
 DiscFrame frame(int columns, int rows, PlaybackState playback,
                 double dt = 1.0 / 15.0) {
-  return {.columns = columns, .rows = rows, .dt = dt, .playback = playback};
+  return {.columns = columns,
+          .rows = rows,
+          .dt = dt,
+          .playback = playback,
+          .theme = {}};
 }
 
 void draw(DiscRenderer &disc, const DiscFrame &value, int steps = 1) {
@@ -57,7 +61,19 @@ int main() {
   assert(screen.CellAt(stats.center_x, stats.center_y).foreground_color ==
          ftxui::Color::RGB(0, 0, 0));
   assert(screen.CellAt(stats.center_x - 3, stats.center_y).foreground_color ==
-         ftxui::Color::RGB(245, 46, 34));
+         reference.theme.accent_primary);
+
+  // Only the label follows the live theme. Re-rendering the same geometry with
+  // another accent changes its lit face immediately, without rebuilding the
+  // renderer or recolouring the spindle.
+  DiscFrame themed = reference;
+  themed.theme.accent_primary = ftxui::Color::RGB(32, 146, 208);
+  ftxui::Screen themed_screen(58, 22);
+  ftxui::Render(themed_screen, disc.render(themed));
+  assert(themed_screen.CellAt(stats.center_x - 3, stats.center_y)
+             .foreground_color == themed.theme.accent_primary);
+  assert(themed_screen.CellAt(stats.center_x, stats.center_y).foreground_color ==
+         ftxui::Color::RGB(0, 0, 0));
 
   // Every point well inside the record is filled; there are no holes between
   // groove bands. The pivoted arm uses only fixed neutral metal colours.
@@ -75,9 +91,9 @@ int main() {
   for (int y = 0; y < 22; ++y) {
     for (int x = 0; x < 58; ++x) {
       const auto color = screen.CellAt(x, y).foreground_color;
-      found_arm_tube |= color == ftxui::Color::RGB(199, 197, 206);
-      found_arm_pin |= color == ftxui::Color::RGB(184, 183, 190);
-      found_arm_shadow |= color == ftxui::Color::RGB(46, 45, 52);
+      found_arm_tube |= color == ftxui::Color::RGB(174, 172, 181);
+      found_arm_pin |= color == ftxui::Color::RGB(160, 159, 166);
+      found_arm_shadow |= color == ftxui::Color::RGB(40, 39, 45);
     }
   }
   assert(found_arm_tube);

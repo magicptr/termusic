@@ -22,6 +22,7 @@ Controller::Controller(MpdBackend &backend, AppState &state, Config &config,
   state_.focus = state_.page == Page::Library
                      ? FocusArea::Library
                      : FocusArea::Settings;
+  state_.display_mode = config_.display_mode;
   state_.visualizer.sensitivity = config_.visualizer_sensitivity;
   // Until main() hands over the resolved endpoint, the stored configuration is
   // the best answer available.
@@ -681,6 +682,11 @@ void Controller::setStopOnExit(bool stop) {
 void Controller::setStartPage(Page page) {
   config_.start_page = page;
   syncSettingsState();
+  saveConfig();
+}
+void Controller::setDisplayMode(DisplayMode mode) {
+  config_.display_mode = mode;
+  state_.display_mode = mode;
   saveConfig();
 }
 void Controller::setVisualizerSensitivity(float sensitivity) {

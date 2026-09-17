@@ -103,6 +103,9 @@ private:
   void startTicker();
   void requestWorkerStop();
   void stopWorkers();
+  /// Starts the shared, idempotent shutdown sequence used by both an explicit
+  /// quit key and a terminal/UI loop that closes on its own.
+  void prepareShutdown(bool with_watchdog);
   void requestQuit();
   /// Starts the shutdown deadline. Called once, before any blocking shutdown
   /// work, so the whole sequence is covered.
@@ -444,6 +447,7 @@ private:
   ftxui::Box previous_box_;
   ftxui::Box play_box_;
   ftxui::Box next_box_;
+  ftxui::Box repeat_box_;
   // One hit box per sidebar row, filled by reflect() during render.
   /// Resolved transport control under the pointer / held down, -1 for none.
   int hover_control_ = -1;
@@ -570,6 +574,7 @@ private:
   std::mutex ticker_mutex_;
   std::condition_variable_any ticker_wakeup_;
   std::atomic<bool> quitting_{false};
+  std::atomic<bool> shutdown_prepared_{false};
   std::jthread ticker_thread_;
   std::atomic<bool> ticker_fast_{false};
   std::atomic<int> ticker_fast_interval_ms_{33};

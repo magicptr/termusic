@@ -11,6 +11,10 @@ expect-state setting=Theme
 keys j j
 expect-state setting=Disc
 key Enter
+expect-absent Palette
+expect-absent Sensitivity
+expect-absent Refresh
+expect-absent Bands
 key i
 # The script harness paints only when a command asks for a frame; advance a
 # handful of real frames so this measures the same eased entry as the live UI.
@@ -48,3 +52,13 @@ size 110x32
 sleep 0.3
 expect-state view=immersive viz=disc discFit=1
 dump
+
+# Spectrum owns these controls. Switching back restores the whole subsection.
+key i
+key j
+expect-state setting=Spectrum
+key Enter
+expect Palette
+expect Sensitivity
+expect Refresh
+expect Bands

@@ -5,6 +5,7 @@
 #include <ftxui/dom/elements.hpp>
 
 #include "app/state.hpp"
+#include "ui/theme.hpp"
 
 namespace termusic::ui {
 
@@ -16,6 +17,7 @@ struct DiscFrame {
   int rows = 0;
   double dt = 1.0 / 15.0;
   PlaybackState playback = PlaybackState::Stopped;
+  Theme theme;
 };
 
 struct DiscStats {

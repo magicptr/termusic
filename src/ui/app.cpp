@@ -190,7 +190,14 @@ Application::Application(AppState &state, Controller &controller,
   buildComponents();
 }
 
-Application::~Application() { stopWorkers(); }
+Application::~Application() {
+  // Also cover stack unwinding and callers that destroy the application
+  // without first entering (or cleanly leaving) run(). Normal exits have
+  // already prepared shutdown, so this is a no-op apart from the final joins.
+  prepareShutdown(false);
+  stopWorkers();
+  backend_.disconnect();
+}
 
 void Application::printDiagnostics() const {
   // Terminal geometry as the kernel reports it.
@@ -606,6 +613,11 @@ int Application::run() {
   analyzer_.setPlaybackActive(state_.player.state == PlaybackState::Playing);
   startTicker();
   screen_.Loop(root_);
+  // FTXUI can return without a `q` event when its terminal disappears or the
+  // loop is closed externally. That path used to skip stop_on_exit entirely
+  // and merely disconnect, leaving MPD playing. Every way out now enters the
+  // same shutdown sequence.
+  prepareShutdown(true);
   stopWorkers();
   backend_.disconnect();
   return 0;
@@ -912,22 +924,32 @@ void Application::armQuitWatchdog() {
   }).detach();
 }
 
-void Application::requestQuit() {
-  // Idempotent: N quit requests produce exactly one shutdown sequence and
-  // therefore exactly one watchdog.
-  if (quitting_.exchange(true))
+void Application::prepareShutdown(bool with_watchdog) {
+  // Idempotent: an explicit quit followed by Loop() returning, destruction,
+  // and any repeated exit requests all produce exactly one stop/disconnect
+  // decision. In particular, stop_on_exit=false remains an explicit promise
+  // to leave MPD playback alone.
+  if (shutdown_prepared_.exchange(true))
     return;
+  quitting_.store(true);
 
-  // Arm the deadline FIRST. It must cover the whole shutdown, including the
-  // MPD stop below -- arming it afterwards would leave that call unguarded.
-  armQuitWatchdog();
+  if (with_watchdog) {
+    // Arm the deadline FIRST. It must cover the whole shutdown, including the
+    // MPD stop below -- arming it afterwards would leave that call unguarded.
+    armQuitWatchdog();
+  }
 
   // Stop producing callbacks, then explicitly stop MPD audio. Disconnecting
-  // the client alone would leave the MPD daemon playing after this process
-  // exits. Loop() can then restore the terminal, after which run() joins the
-  // already-stopping workers and returns normally from main.
+  // the client alone would leave the MPD daemon playing. The controller reads
+  // the persisted setting: only an explicit stop_on_exit=false skips stop().
   requestWorkerStop();
   controller_.stopPlaybackForExit();
+}
+
+void Application::requestQuit() {
+  prepareShutdown(true);
+  // Loop() can now restore the terminal; run() then joins the already-stopping
+  // workers and closes both MPD connections.
   screen_.Exit();
 }
 
@@ -2695,9 +2717,10 @@ Element Application::renderSidebarPlayback() {
     return util::ellipsize(value, text_width);
   };
 
-  // The playback context, named by its own kind. `None` means the run was not
-  // started from a collection this application owns, and the block then shows
-  // the song without inventing an owner.
+  // The playback context, named by its own kind. `None` occurs when termusic
+  // attaches to an already-playing daemon or an external client replaces the
+  // queue. MPD queue is then the only truthful source label; omitting the row
+  // made the sidebar appear intermittently broken.
   std::string context;
   switch (controller_.playbackContext().kind) {
   case PlaybackCollection::Kind::Library:
@@ -2710,10 +2733,12 @@ Element Application::renderSidebarPlayback() {
     context = controller_.playbackContext().name;
     break;
   case PlaybackCollection::Kind::None:
+    context = "MPD queue";
     break;
   }
-  if (!context.empty())
-    context = "# " + context;
+  if (context.empty())
+    context = "MPD queue";
+  context = "# " + context;
 
   // The four candidate lines, in VISUAL order (faintest first). `rank` is how
   // long a line survives when the sidebar is too short: the anchor outlives
@@ -2734,10 +2759,9 @@ Element Application::renderSidebarPlayback() {
   candidates.push_back({song->displayTitle(), "text:bold", 3,
                         text(" " + line(song->displayTitle())) | bold |
                             color(theme_.text)});
-  if (!context.empty())
-    candidates.push_back({context, "accent_secondary:regular", 2,
-                          text(" " + line(context)) |
-                              color(theme_.accent_secondary)});
+  candidates.push_back({context, "accent_secondary:regular", 2,
+                        text(" " + line(context)) |
+                            color(theme_.accent_secondary)});
   candidates.push_back({"NOW PLAYING", "accent_primary:bold", 4,
                         text(" " + line("NOW PLAYING")) | bold |
                             color(theme_.accent_primary)});
@@ -2823,6 +2847,15 @@ Element Application::renderTrackBuffer() {
     // the unrelated rows that happened to be there before.
     rows.push_back(text(filtering ? "No matches." : "Collection is empty") |
                    color(filtering ? theme_.error : theme_.muted_text));
+    const bool writable_playlist =
+        !filtering && active_collection_ == ActiveCollection::Playlist &&
+        active_playlist_index_ > 0;
+    if (writable_playlist) {
+      rows.push_back(text("Use yy or v + y in another list to copy songs.") |
+                     color(theme_.weak_text));
+      rows.push_back(text("Press p here to add them to this playlist.") |
+                     color(theme_.weak_text));
+    }
   } else {
     cursor = std::clamp(cursor, 0, view_size - 1);
     const int page = std::max(1, metrics_.main_height - 5);
@@ -3354,13 +3387,11 @@ std::string Application::scriptStateSummary() {
            return best;
          }()
       << " random=" << (state_.player.random ? 1 : 0)
-      // Volume and repeat are LOAD-BEARING for the shortcut cleanup: a removed
-      // `+`/`-` must leave the volume alone, and `r` must still toggle repeat.
-      // Reporting them is what lets a script assert that instead of assuming.
+      // Volume and repeat are reported so scripted checks can verify that
+      // workspace keys leave them alone and immersive `r` changes repeat.
       << " repeat=" << (state_.player.repeat ? 1 : 0)
       << " volume=" << state_.player.volume
-      // The Player Bar's own budget: one playback-mode control (Shuffle), so
-      // the cluster is four buttons wide and the progress track gets the rest.
+      // The Player Bar's own budget includes both playback-mode indicators.
       << " controlsWidth=" << metrics_.controls_width
       << " progressWidth=" << metrics_.progress_width;
   return out.str();
@@ -3593,6 +3624,7 @@ Element Application::renderImmersiveVisualizer() {
         .rows = std::max(0, layout.visualizer_container_rows),
         .dt = std::clamp(dt, 1.0 / 240.0, 0.12),
         .playback = state_.player.state,
+        .theme = theme_,
     };
     disc_->update(frame);
     return disc_->render(frame);
@@ -3748,9 +3780,8 @@ Element Application::renderPlayerBar() {
     // hit test can never disagree with what was drawn.
     controls.push_back(std::move(laid_out) | reflect(box));
   };
-  // ONE playback-mode control. Sequential playback is simply "shuffle off":
-  // the icon is always visible and its highlight is the MPD `random` flag, so
-  // there is no second mode icon and no separate "SEQ" state to draw.
+  // Stateful controls stay visible in the normal immersive layout. Off uses
+  // the subdued toggle colour; the matching MPD flag lights the icon.
   if (metrics_.show_shuffle)
     add_control(Icon::Shuffle, false, state_.player.random, shuffle_box_, 0,
                 true);
@@ -3761,10 +3792,9 @@ Element Application::renderPlayerBar() {
                                                             : Icon::Play,
               player_focused, false, play_box_, 2);
   add_control(Icon::Next, false, false, next_box_, 3);
-  // Repeat is deliberately NOT part of the Player Bar any more. The action
-  // still exists (global `r`), it is simply not one of the two playback-mode
-  // controls here -- and no spacer is left behind: the cells it used to occupy
-  // were never reserved, so the progress track absorbs them.
+  if (metrics_.show_repeat)
+    add_control(Icon::Repeat, false, state_.player.repeat, repeat_box_, 4,
+                true);
 
   Element transport =
       hbox(std::move(controls)) |
@@ -4058,7 +4088,7 @@ bool Application::handleEvent(Event event) {
     if (mouse.button == Mouse::Left || mouse.button == Mouse::None) {
       const std::pair<const Box *, int> targets[] = {
           {&shuffle_box_, 0}, {&previous_box_, 1}, {&play_box_, 2},
-          {&next_box_, 3},
+          {&next_box_, 3}, {&repeat_box_, 4},
       };
       int hit = -1;
       for (const auto &target : targets) {
@@ -4099,6 +4129,9 @@ bool Application::handleEvent(Event event) {
             break;
           case 3:
             dispatch(Action::Next);
+            break;
+          case 4:
+            dispatch(Action::ToggleRepeat);
             break;
           default:
             break;

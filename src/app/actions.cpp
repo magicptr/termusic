@@ -51,7 +51,7 @@ constexpr auto kActionInfo = std::to_array<ActionInfo>({
     {Action::SeekBackward, "seek_backward", "Seek backward", true, kImmersive},
     {Action::VolumeUp, "volume_up", "Volume up", true, kImmersive},
     {Action::VolumeDown, "volume_down", "Volume down", true, kImmersive},
-    {Action::ToggleRepeat, "toggle_repeat", "Toggle repeat"},
+    {Action::ToggleRepeat, "toggle_repeat", "Toggle repeat", true, kImmersive},
     {Action::ToggleShuffle, "toggle_shuffle", "Toggle shuffle"},
     {Action::Search, "search", "Search"},
     {Action::Cancel, "cancel", "Cancel / close"},

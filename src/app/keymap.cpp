@@ -228,7 +228,6 @@ void Keymap::loadDefaults() {
   bind(KeyContext::Global, Action::Quit, {"q"});
   bind(KeyContext::Global, Action::Cancel, {"Esc"});
   bind(KeyContext::Global, Action::TogglePlay, {"Space"});
-  bind(KeyContext::Global, Action::ToggleRepeat, {"r"});
   bind(KeyContext::Global, Action::ToggleShuffle, {"s"});
   bind(KeyContext::Global, Action::PageLibrary, {"1"});
   bind(KeyContext::Global, Action::PageSettings, {"2"});
@@ -296,6 +295,7 @@ void Keymap::loadDefaults() {
   bind(KeyContext::Immersive, Action::Next, {"l"});
   bind(KeyContext::Immersive, Action::SeekBackward, {","});
   bind(KeyContext::Immersive, Action::SeekForward, {"."});
+  bind(KeyContext::Immersive, Action::ToggleRepeat, {"r"});
 
   bind(KeyContext::Settings, Action::MoveDown, {"j"});
   bind(KeyContext::Settings, Action::MoveUp, {"k"});
