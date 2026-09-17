@@ -21,7 +21,6 @@ public:
 
 protected:
   void fill(const CoreContext &context) override {
-    const Config &config = context.config();
     std::vector<SettingItem> items;
 
     const auto heading_row = [&items](const char *text) {
@@ -75,8 +74,8 @@ protected:
     line("Two roots. Vault holds music, Core holds settings.");
     line("Under Vault: Library is the media database, Playlists are saved");
     line("lists you own, History is what you played.");
-    line("Under Core: General, Appearance, Keybindings, Plugins, About,");
-    line("Help. The left column IS the list of settings modules.");
+    line("Under Core: General, Appearance, Keybindings, About and Help.");
+    line("The left column IS the list of settings modules.");
 
     heading_row("Moving and selecting");
     line("The highlighted pane owns the keys. Use h / l to cross between");
@@ -128,10 +127,6 @@ protected:
                              ? std::string("(unavailable)")
                              : paths.logFile().string()));
     }
-    line("plugins " + (config.plugin_directory.empty()
-                         ? std::string("(the termusic data directory)")
-                         : config.plugin_directory));
-    line("Drop a native plugin there and list it under Core > Plugins.");
     line("MPD server settings live under Core > General.");
     for (SettingItem &item : items)
       item.label = item.label;

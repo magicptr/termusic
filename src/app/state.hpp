@@ -36,6 +36,13 @@ enum class Page {
   Settings,
 };
 
+/// The single primary visual shown in the immersive player. Keeping this as
+/// one value makes Spectrum and Disc mutually exclusive by construction.
+enum class DisplayMode {
+  Spectrum,
+  Disc,
+};
+
 /// Number of entries in the sidebar.
 inline constexpr int kPageCount = 2;
 
@@ -65,20 +72,18 @@ struct ConfigFileEntry {
 
 /// The order here IS the order of the tree AND the order of the panes:
 /// frequently used configuration first (General, Appearance, Keybindings),
-/// then extension management (Plugins), then the two read-only pages
-/// (About, Help). The MPD server settings are part of General -- there is no
-/// separate Connection entry.
-inline constexpr std::array<ConfigFileEntry, 6> kCoreSections = {{
+/// then the two read-only pages (About, Help). The MPD server settings are part
+/// of General -- there is no separate Connection entry.
+inline constexpr std::array<ConfigFileEntry, 5> kCoreSections = {{
     {"core:general", "General", 0, "startup, steps and the MPD server",
      CoreSectionKind::Settings},
     {"core:appearance", "Appearance", 1, "theme and visualizer",
      CoreSectionKind::Settings},
     {"core:keybindings", "Keybindings", 2, "key bindings",
      CoreSectionKind::Settings},
-    {"core:plugins", "Plugins", 3, "extensions", CoreSectionKind::Settings},
-    {"core:about", "About", 4, "version and credits",
+    {"core:about", "About", 3, "version and credits",
      CoreSectionKind::Information},
-    {"core:help", "Help", 5, "how to use termusic",
+    {"core:help", "Help", 4, "how to use termusic",
      CoreSectionKind::Information},
 }};
 
@@ -283,6 +288,7 @@ struct AppState {
   /// Orthogonal to `page`: the immersive display replaces the main region of
   /// whatever section is active and returns to it unchanged.
   PresentationMode presentation = PresentationMode::Normal;
+  DisplayMode display_mode = DisplayMode::Spectrum;
   /// The music register survives pane switches, collection changes and
   /// presentation changes until it is overwritten.
   MusicRegister music_register;

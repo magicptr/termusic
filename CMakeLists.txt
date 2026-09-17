@@ -59,10 +59,10 @@ add_library(termusic_core STATIC
   src/app/state.cpp
   src/config/config.cpp
   src/config/paths.cpp
-  src/extensions/extension_registry.cpp
   src/ui/metrics.cpp
   src/ui/theme.cpp
   src/ui/widgets.cpp
+  src/ui/visualizer/disc.cpp
   src/ui/visualizer/palette.cpp
   src/ui/visualizer/spectrum.cpp
   src/util/text.cpp
@@ -81,7 +81,6 @@ target_link_libraries(termusic_core PUBLIC
 add_library(termusic_runtime STATIC
   src/backend/mpd_backend.cpp
   src/controller/controller.cpp
-  src/extensions/plugin_manager.cpp
   src/ui/app.cpp
   # `core` is a module tree, not one file: every entry under the tree's second
   # root is its own translation unit with one interface.
@@ -92,11 +91,10 @@ add_library(termusic_runtime STATIC
   src/ui/core/keybindings.cpp
   src/ui/core/panel.cpp
   src/ui/core/panel_common.cpp
-  src/ui/core/plugins.cpp
   src/ui/core/settings.cpp
 )
 target_link_libraries(termusic_runtime PUBLIC termusic_core termusic_mpdclient
-                                             kissfft::kissfft ${CMAKE_DL_LIBS})
+                                             kissfft::kissfft)
 # The bundled libmpdclient is built by an ExternalProject during the build, so
 # the targets that use it must wait for it.
 add_dependencies(termusic_runtime termusic_libmpdclient_project)
@@ -126,14 +124,12 @@ termusic_enable_warnings(termusic_core)
 termusic_enable_warnings(termusic_runtime)
 termusic_enable_warnings(termusic)
 
-# A conventional installation: ${prefix}/bin/termusic plus the plugin header and
-# the documents -- the same set a distributor packages from a source checkout.
+# A conventional installation: ${prefix}/bin/termusic plus the documents -- the
+# same set a distributor packages from a source checkout.
 # Nothing else is installed: no tests, no fixtures, no build files. Runtime
 # resources are resolved through XDG (see src/config/paths.cpp), so the binary
 # carries no dependency on this source tree.
 install(TARGETS termusic RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
-install(FILES src/extensions/plugin_api.h
-        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/termusic)
 install(FILES README.md LICENSE THIRD_PARTY_LICENSES.md
         DESTINATION ${CMAKE_INSTALL_DOCDIR})
 # The reference configuration: the same document --print-default-config prints.
@@ -219,20 +215,17 @@ if(BUILD_TESTING)
   add_test(NAME termusic_visualizer
            COMMAND termusic_visualizer_tests)
 
-  add_library(termusic_test_plugin MODULE tests/fixture_plugin.cpp)
-  target_include_directories(termusic_test_plugin PRIVATE src)
-  set_target_properties(termusic_test_plugin PROPERTIES PREFIX "")
+  add_executable(termusic_disc_tests tests/disc_render_test.cpp)
+  target_link_libraries(termusic_disc_tests PRIVATE termusic_core)
+  termusic_enable_warnings(termusic_disc_tests)
+  add_test(NAME termusic_disc COMMAND termusic_disc_tests)
 
-  add_executable(termusic_plugin_tests tests/plugin_tests.cpp)
-  target_link_libraries(termusic_plugin_tests PRIVATE termusic_runtime)
-  termusic_enable_warnings(termusic_plugin_tests)
-  if(MSVC)
-    target_compile_options(termusic_plugin_tests PRIVATE /UNDEBUG)
-  else()
-    target_compile_options(termusic_plugin_tests PRIVATE -UNDEBUG)
-  endif()
-  add_test(NAME termusic_plugins COMMAND termusic_plugin_tests
-           $<TARGET_FILE:termusic_test_plugin>)
+  add_test(NAME termusic_disc_ui
+           COMMAND termusic --demo
+                   --ui-script ${CMAKE_CURRENT_SOURCE_DIR}/tests/disc.ui)
+  set_tests_properties(termusic_disc_ui PROPERTIES
+                       WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+                       ENVIRONMENT "HOME=${CMAKE_CURRENT_BINARY_DIR}/disc-ui-home;XDG_CONFIG_HOME=${CMAKE_CURRENT_BINARY_DIR}/disc-ui-home/config;XDG_DATA_HOME=${CMAKE_CURRENT_BINARY_DIR}/disc-ui-home/data;XDG_CACHE_HOME=${CMAKE_CURRENT_BINARY_DIR}/disc-ui-home/cache")
 
   # The immersive renderer, driven through its own UI-script harness: it builds
   # a synthetic 96-band spectrum, opens the now-playing view at three sizes and
@@ -248,7 +241,7 @@ if(BUILD_TESTING)
                    --host 127.0.0.1 --port 6699
                    --ui-script ${CMAKE_CURRENT_SOURCE_DIR}/tests/immersive_render.ui)
   # Isolated HOME/XDG: the test runs the real binary, and it must not read or
-  # write the user's configuration, history, plugins or logs.
+  # write the user's configuration, history or logs.
   set_tests_properties(termusic_immersive_render PROPERTIES
                        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
                        ENVIRONMENT "HOME=${CMAKE_CURRENT_BINARY_DIR}/test-home;XDG_CONFIG_HOME=${CMAKE_CURRENT_BINARY_DIR}/test-home/config;XDG_DATA_HOME=${CMAKE_CURRENT_BINARY_DIR}/test-home/data;XDG_CACHE_HOME=${CMAKE_CURRENT_BINARY_DIR}/test-home/cache")

@@ -222,12 +222,11 @@ bool keyIsKnown(const std::string &section, const std::string &key) {
            {"enabled", "style", "palette", "refresh_hz", "sensitivity",
             "bar_density", "fifo_path", "sample_rate", "channels"}},
           {"history", {"enabled", "max_entries"}},
-          {"plugins", {"enabled", "directory"}},
       };
   const auto dot = section.find('.');
   const std::string head =
       dot == std::string::npos ? section : section.substr(0, dot);
-  if (head == "keybindings" || head == "plugin")
+  if (head == "keybindings")
     return true;
   const auto found = keys.find(head);
   return found != keys.end() && found->second.count(key) != 0;
@@ -335,14 +334,6 @@ void parseDocument(std::istream &input, ConfigLoad *load) {
         readNumber(value, 0, 4, 2, &config.transport_gap, diagnostics,
                    "appearance", "transport_gap");
       }
-    } else if (section == "plugins") {
-      if (key == "enabled")
-        readBool(value, true, &config.plugins_enabled, diagnostics, "plugins",
-                 "enabled");
-      else if (key == "directory")
-        readString(value, &config.plugin_directory);
-    } else if (section.starts_with("plugin.") && section.size() > 7) {
-      config.plugin_settings[section.substr(7)][key] = unquote(value);
     } else if (section == "history") {
       if (key == "enabled")
         readBool(value, true, &config.history_enabled, diagnostics, "history",
@@ -441,10 +432,7 @@ std::string serialize(const Config &config) {
          << "channels = " << config.visualizer_channels << "\n\n"
          << "[history]\n"
          << "enabled = " << (config.history_enabled ? "true" : "false") << '\n'
-         << "max_entries = " << config.history_max_entries << "\n\n"
-         << "[plugins]\n"
-         << "enabled = " << (config.plugins_enabled ? "true" : "false") << '\n'
-         << "directory = " << quote(config.plugin_directory) << "\n\n";
+         << "max_entries = " << config.history_max_entries << "\n\n";
   // Only emit a table that actually has overrides: defaults live in the
   // application, so an empty table in the user file is noise.
   for (const auto &[context, actions] : config.keybindings) {
@@ -469,11 +457,6 @@ std::string serialize(const Config &config) {
       output << '\n';
     }
     output << '\n';
-  }
-  for (const auto &[plugin, values] : config.plugin_settings) {
-    output << "\n[plugin." << plugin << "]\n";
-    for (const auto &[key, value] : values)
-      output << key << " = " << quote(value) << '\n';
   }
   // Settings termusic does not model, put back exactly as they were written.
   for (const auto &section : preservedSections(config)) {
@@ -763,11 +746,6 @@ channels = 2
 # never modified by it.
 enabled = true
 max_entries = 100
-
-[plugins]
-enabled = true
-# Empty means the `plugins` directory in termusic's XDG data directory.
-directory = ""
 
 # Key bindings: only what you write here overrides a built-in binding.
 # [keybindings.global]

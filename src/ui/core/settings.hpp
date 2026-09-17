@@ -4,8 +4,8 @@
 //
 // A module describes WHAT it offers -- a list of `SettingItem`s with getters
 // and setters wired straight to the configuration -- and this header owns HOW
-// that is navigated, edited and drawn. Nothing here knows about MPD, themes or
-// plugins, and no module draws its own toggle, field or button.
+// that is navigated, edited and drawn. Nothing here knows about MPD or themes,
+// and no module draws its own toggle, field or button.
 //
 // Adding a module is therefore: one new .cpp that fills a list, plus one line
 // in the section registry (see panel.cpp).
@@ -180,7 +180,7 @@ protected:
   /// Fills the list. Called once at build(), and again on every frame where
   /// `itemsChanged()` says the list may differ.
   virtual void fill(const CoreContext &context) = 0;
-  /// True when the item list itself may have changed (a plugin appeared, the
+  /// True when the item list itself may have changed (for example, the
   /// theme list grew). Values never need this: they are read through getters.
   virtual bool itemsChanged(const CoreContext &context) const {
     (void)context;

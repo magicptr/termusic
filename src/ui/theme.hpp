@@ -125,8 +125,8 @@ struct ThemeInfo {
   std::filesystem::path source;
 };
 
-/// Owns built-in, file-backed and plugin-provided themes. Theme IDs are stable
-/// configuration values; display names are free to change.
+/// Owns built-in and file-backed themes. Theme IDs are stable configuration
+/// values; display names are free to change.
 class ThemeRegistry {
 public:
   ThemeRegistry();

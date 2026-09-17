@@ -50,7 +50,7 @@ public:
   // --- Rendering -----------------------------------------------------------
   void poll(const CoreContext &context) override {
     theme_ = context.theme();
-    // A keymap change from anywhere else (a config reload, a plugin) must show
+    // A keymap change from anywhere else (for example, a config reload) must show
     // up here without a manual refresh; the row list is cheap to rebuild.
     if (context.keymap.revision() != revision_seen_) {
       revision_seen_ = context.keymap.revision();

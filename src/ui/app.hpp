@@ -19,7 +19,6 @@
 #include "app/state.hpp"
 #include "backend/mpd_backend.hpp"
 #include "controller/controller.hpp"
-#include "extensions/extension_registry.hpp"
 #include "app/interaction.hpp"
 #include "app/keymap.hpp"
 #include "app/workspace_tree.hpp"
@@ -27,6 +26,7 @@
 #include "ui/core/panel.hpp"
 #include "ui/metrics.hpp"
 #include "ui/theme.hpp"
+#include "ui/visualizer/disc.hpp"
 #include "ui/widgets.hpp"
 #include "visualizer/analyzer.hpp"
 #include "visualizer/beat.hpp"
@@ -37,9 +37,7 @@ class Application {
  public:
 public:
   Application(AppState &state, Controller &controller, MpdBackend &backend,
-              VisualizerAnalyzer &analyzer,
-              ThemeRegistry &themes,
-              extensions::ExtensionRegistry &extensions);
+              VisualizerAnalyzer &analyzer, ThemeRegistry &themes);
   ~Application();
 
   int run();
@@ -112,11 +110,10 @@ private:
 
   ftxui::Element renderRoot();
   ftxui::Element renderSettings();
-  /// The immersive visualizer: the Spectrum, fed by the shared
-  /// spectrum/beat model.
+  /// The immersive visual: either the Spectrum or the animated Disc.
   ftxui::Element renderImmersiveVisualizer();
-  /// Creates the renderer on first use. There is nothing to choose and nothing
-  /// to switch, so it is built once and then only handed frames.
+  /// Creates the Spectrum renderer on first use. Disc owns its own renderer;
+  /// switching back keeps the Spectrum state available without rebuilding it.
   void ensureVisualizerRenderer();
   /// The shared frame the renderer consumes: geometry + spectrum + beat.
   ui::VisualizerFrame visualizerFrame(const ui::VisualizerPalette &palette,
@@ -350,10 +347,10 @@ private:
   /// First value seen for each key asserted with `expect-state-same`, so a
   /// script can pin a "this must not change" rule to the value it started with.
   std::map<std::string, std::string> script_baseline_;
-  /// THE visualizer: the Spectrum, and the only renderer there is. The
-  /// Application never branches on it -- it hands the renderer the shared frame
-  /// (spectrum, beat, grid geometry, palette) and draws what comes back.
+  /// The Spectrum renderer. The Disc renderer beside it owns independent
+  /// pixel-art geometry and rotation state so modes cannot mix animations.
   std::unique_ptr<ui::VisualizerRenderer> visualizer_;
+  std::unique_ptr<ui::DiscRenderer> disc_;
   /// The beat envelope. Persistence for the animation, never geometry.
   BeatState beat_;
   /// The low-band energy of the last rendered frame, reported by the script
@@ -363,7 +360,6 @@ private:
   /// and decay rates are time-based rather than frame-count-based.
   std::chrono::steady_clock::time_point last_visualizer_time_{};
   ThemeRegistry &themes_;
-  extensions::ExtensionRegistry &extensions_;
   Theme theme_;
 
   ftxui::ScreenInteractive screen_ = ftxui::ScreenInteractive::Fullscreen();
@@ -576,6 +572,7 @@ private:
   std::atomic<bool> quitting_{false};
   std::jthread ticker_thread_;
   std::atomic<bool> ticker_fast_{false};
+  std::atomic<int> ticker_fast_interval_ms_{33};
   /// True while the SEARCH LINE owns the keyboard. The analyzer thread reads it
   /// to stop requesting a repaint per analysed frame: the spectrum is not on
   /// screen then, and a repaint storm under an active IME is exactly what makes

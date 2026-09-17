@@ -105,19 +105,10 @@ struct Config {
   bool history_enabled = true;
   int history_max_entries = 100;
 
-  // --- [plugins] -----------------------------------------------------------
-  bool plugins_enabled = true;
-  /// Optional directory containing native plugins (*.so / *.dylib). Empty
-  /// means the `plugins` directory in termusic's XDG data directory.
-  std::string plugin_directory;
-  /// Plugin-owned values are preserved without the core knowing their schema.
-  /// The outer key is the plugin id from a [plugin.<id>] section.
-  std::map<std::string, std::map<std::string, std::string>> plugin_settings;
-
   /// Settings termusic does not model, kept exactly as written so that saving
-  /// the file never drops a key belonging to a newer version, a plugin or a
-  /// human editor. Comments are NOT preserved: the reader is line based and
-  /// the writer regenerates the document.
+  /// the file never drops a key belonging to a newer version or a human editor.
+  /// Comments are NOT preserved: the reader is line based and the writer
+  /// regenerates the document.
   struct PreservedEntry {
     std::string section;
     std::string key;
@@ -236,9 +227,6 @@ struct CliOverrides {
   std::string visualizer_palette;
   bool theme_directory_set = false;
   std::string theme_directory;
-  bool plugin_directory_set = false;
-  std::string plugin_directory;
-  bool no_plugins = false;
   bool ui_slider_test = false;
   bool ui_mouse_debug = false;
   bool ui_visualizer_motion_test = false;

@@ -22,7 +22,6 @@
 #include "app/diagnostics.hpp"
 #include "config/config.hpp"
 #include "config/paths.hpp"
-#include "extensions/extension_registry.hpp"
 #include "ui/metrics.hpp"
 #include "ui/theme.hpp"
 #include "ui/widgets.hpp"
@@ -1225,10 +1224,6 @@ int main() {
   config.mpd_host = "musicbox";
   config.visualizer_fifo = "/tmp/test-mpd.fifo";
   config.theme_name = "monokai-pro";
-  config.plugins_enabled = false;
-  config.plugin_directory = "/tmp/termusic-plugins";
-  config.plugin_settings["lyrics"]["provider"] = "local";
-  config.plugin_settings["lyrics"]["token"] = "part#1\\\"quoted\\path\nnext";
   config.mpd_password = "secret#value\\\"with\\slashes\t";
   config.keybindings["global"]["toggle_immersive"] = {"i", "Ctrl+i"};
   config.keybindings["immersive"]["seek_backward"] = {","};
@@ -1239,11 +1234,6 @@ int main() {
   assert(loaded.mpd_host == "musicbox");
   assert(loaded.visualizer_fifo == "/tmp/test-mpd.fifo");
   assert(loaded.theme_name == "monokai-pro");
-  assert(!loaded.plugins_enabled);
-  assert(loaded.plugin_directory == "/tmp/termusic-plugins");
-  assert(loaded.plugin_settings.at("lyrics").at("provider") == "local");
-  assert(loaded.plugin_settings.at("lyrics").at("token") ==
-         config.plugin_settings.at("lyrics").at("token"));
   assert(loaded.mpd_password == config.mpd_password);
   assert(loaded.keybindings.at("global").at("toggle_immersive") ==
          config.keybindings.at("global").at("toggle_immersive"));
@@ -1305,7 +1295,6 @@ int main() {
       assert(parsed.visualizer_fifo == defaults.visualizer_fifo);
       assert(parsed.history_enabled == defaults.history_enabled);
       assert(parsed.history_max_entries == defaults.history_max_entries);
-      assert(parsed.plugins_enabled == defaults.plugins_enabled);
       assert(parsed.mpd_password.empty());
       assert(parsed.preserved.empty());
     }
@@ -1522,8 +1511,6 @@ int main() {
            "/home/example/.config/termusic/config.toml");
     assert(paths.data_directory == "/home/example/.local/share/termusic");
     assert(paths.cache_directory == "/home/example/.cache/termusic");
-    assert(paths.pluginDirectory() ==
-           "/home/example/.local/share/termusic/plugins");
     assert(paths.historyFile() ==
            "/home/example/.local/share/termusic/history.toml");
 
@@ -1619,30 +1606,6 @@ int main() {
     assert(kanagawa.border != mocha.border);
   }
 
-  extensions::ExtensionRegistry extensions;
-  extensions::SettingDescriptor setting;
-  setting.id = "test.enabled";
-  setting.section = "Test";
-  setting.label = "Enabled";
-  assert(extensions.registerSetting(setting));
-  setting.label = "Duplicate";
-  assert(!extensions.registerSetting(setting));
-  assert(extensions.registerUiBlock(
-      {.id = "test.second",
-       .slot = "settings.extensions",
-       .title = "Second",
-       .order = 20,
-       .render_text = [] { return std::string("second"); }}));
-  assert(extensions.registerUiBlock(
-      {.id = "test.first",
-       .slot = "settings.extensions",
-       .title = "First",
-       .order = 10,
-       .render_text = [] { return std::string("first"); }}));
-  const auto blocks = extensions.blocksFor("settings.extensions");
-  assert(blocks.size() == 2U);
-  assert(blocks.front().get().id == "test.first");
-
   VisualizerAnalyzer analyzer;
   constexpr int channels = 2;
   constexpr int sample_rate = 44100;
@@ -1711,9 +1674,9 @@ int main() {
       assert(kCoreSections[index].section == static_cast<int>(index));
     }
     // The canonical order, by stable id.
-    const std::array<std::string_view, 6> expected_order = {
+    const std::array<std::string_view, 5> expected_order = {
         "core:general", "core:appearance", "core:keybindings",
-        "core:plugins", "core:about",    "core:help"};
+        "core:about", "core:help"};
     for (std::size_t index = 0; index < expected_order.size(); ++index) {
       assert(kCoreSections[index].id == expected_order[index]);
     }

@@ -39,7 +39,6 @@ std::unique_ptr<SettingsSection> makeAppearance() {
 std::unique_ptr<SettingsSection> makeKeybindings() {
   return makeKeybindingsSection();
 }
-std::unique_ptr<SettingsSection> makePlugins() { return makePluginsSection(); }
 std::unique_ptr<SettingsSection> makeAbout() { return makeAboutSection(); }
 std::unique_ptr<SettingsSection> makeHelp() { return makeHelpSection(); }
 
@@ -47,7 +46,6 @@ constexpr std::array<SectionFactory, kCoreSections.size()> kSectionFactories = {
     {"core:general", makeGeneral},
     {"core:appearance", makeAppearance},
     {"core:keybindings", makeKeybindings},
-    {"core:plugins", makePlugins},
     {"core:about", makeAbout},
     {"core:help", makeHelp},
 }};

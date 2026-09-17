@@ -90,7 +90,7 @@ HistoryStore::HistoryStore(std::filesystem::path path)
 
 std::filesystem::path HistoryStore::defaultPath() {
   // Application-owned data belongs in the XDG DATA directory (the same rule
-  // that puts plugins there), resolved by the one paths module.
+  // that puts application data there), resolved by the one paths module.
   return resolveAppPaths().historyFile();
 }
 

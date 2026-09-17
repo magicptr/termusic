@@ -4,9 +4,10 @@
 // whose entries are settings, not text files. This header is the module
 // boundary for that whole side of the application.
 //
-// Each entry under `core` is one self-contained module (`general`, `mpd`,
-// `appearance`, `keybindings`, `plugins`). The set and its order are exactly
-// `kCoreSections`, so the tree and the panes cannot drift apart. A module owns
+// Each entry under `core` is one self-contained module (`general`,
+// `appearance`, `keybindings`, `about`, `help`). The set and its order are
+// exactly `kCoreSections`, so the tree and panes cannot drift apart. A module
+// owns
 //
 //   * the widgets its pane shows,
 //   * the UI-local mirror of the settings it edits,
@@ -33,7 +34,6 @@
 #include "app/state.hpp"
 #include "config/config.hpp"
 #include "controller/controller.hpp"
-#include "extensions/extension_registry.hpp"
 #include "ui/metrics.hpp"
 #include "ui/theme.hpp"
 #include "ui/widgets.hpp"
@@ -54,7 +54,6 @@ struct KeymapRow {
 struct CoreContext {
   AppState &state;
   Controller &controller;
-  extensions::ExtensionRegistry &extensions;
   ThemeRegistry &themes;
   /// Live terminal metrics, re-derived every frame. A section reads geometry
   /// from here instead of inventing its own widths.
@@ -166,7 +165,6 @@ public:
 
 std::unique_ptr<SettingsSection> makeGeneralSection();
 std::unique_ptr<SettingsSection> makeAppearanceSection();
-std::unique_ptr<SettingsSection> makePluginsSection();
 std::unique_ptr<SettingsSection> makeAboutSection();
 std::unique_ptr<SettingsSection> makeHelpSection();
 

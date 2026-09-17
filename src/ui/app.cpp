@@ -86,11 +86,10 @@ int pageIndex(Page page) {
 
 Application::Application(AppState &state, Controller &controller,
                          MpdBackend &backend, VisualizerAnalyzer &analyzer,
-                         ThemeRegistry &themes,
-                         extensions::ExtensionRegistry &extensions)
+                         ThemeRegistry &themes)
     : state_(state), controller_(controller), backend_(backend),
       analyzer_(analyzer), themes_(themes),
-      extensions_(extensions), theme_(themes.resolve(controller.config().theme_name)) {
+      theme_(themes.resolve(controller.config().theme_name)) {
   page_index_ = pageIndex(state_.page);
   configureKeymap();
   // Startup consistency: the Tree cursor and the Track Buffer both start on the
@@ -170,7 +169,6 @@ Application::Application(AppState &state, Controller &controller,
   core_context_ = std::make_unique<core::CoreContext>(core::CoreContext{
       .state = state_,
       .controller = controller_,
-      .extensions = extensions_,
       .themes = themes_,
       .metrics = metrics_,
       .start_page_index = core_start_page_index_,
@@ -863,8 +861,8 @@ void Application::startTicker() {
     while (!stop.stop_requested()) {
       // Live spectrum and explicit diagnostic animations use the fast rate;
       // an unavailable FIFO must not keep an idle UI spinning at 30 FPS.
-      const auto interval =
-          std::chrono::milliseconds(ticker_fast_.load() ? 33 : 250);
+      const auto interval = std::chrono::milliseconds(
+          ticker_fast_.load() ? ticker_fast_interval_ms_.load() : 250);
       ticker_wakeup_.wait_for(lock, stop, interval, [] { return false; });
       if (stop.stop_requested())
         break;
@@ -3295,12 +3293,13 @@ std::string Application::scriptStateSummary() {
            return static_cast<int>(std::lround(top * 100.0F));
          }()
       << " vizLive=" << (state_.visualizer.data_available ? 1 : 0)
-      // The ONE visualizer, and what it is holding. `vizCells` is the
-      // drawn-cell count of the last frame; `vizBase` is the DOT row the bars
-      // stand on, `vizMain` the tallest a bar may be, and `vizBars` / `vizDots`
-      // the bar count and the dot count -- the dots are one per bar and are
-      // drawn whether or not any audio is arriving.
-      << " viz=" << (visualizer_ ? visualizer_->id() : termusic::ui::kVisualizerId)
+      // The selected immersive visual. Spectrum keeps its detailed renderer
+      // counters; Disc exposes its tonearm and geometry state below.
+      << " viz="
+      << (state_.display_mode == DisplayMode::Disc
+              ? "disc"
+              : (visualizer_ ? visualizer_->id()
+                             : termusic::ui::kVisualizerId))
       << " vizPalette="
       << termusic::ui::normalizeVisualizerPaletteId(
              controller_.config().visualizer_palette)
@@ -3311,6 +3310,7 @@ std::string Application::scriptStateSummary() {
       << " vizMain=" << (visualizer_ ? visualizer_->stats().main_rows : 0)
       << " vizBars=" << (visualizer_ ? visualizer_->stats().bars : 0)
       << " vizDots=" << (visualizer_ ? visualizer_->stats().dots : 0)
+      << " discFit=" << (!disc_ || disc_->stats().geometry_fits ? 1 : 0)
       // The sidebar's two regions, from the metrics: a script can assert the
       // responsive behaviour without measuring pixels.
       << " sideRows=" << metrics_.sidebar.rows
@@ -3578,17 +3578,28 @@ ui::VisualizerFrame Application::visualizerFrame(
 }
 
 Element Application::renderImmersiveVisualizer() {
-  // ONE adapter, no selection: the Spectrum is the only renderer, so this
-  // function hands it the shared frame and draws the result.
-  //
-  // The beat envelope is stepped here because it belongs to the shared model,
-  // not to the renderer.
-  ensureVisualizerRenderer();
   const auto now = std::chrono::steady_clock::now();
   double dt = 1.0 / 60.0;
   if (last_visualizer_time_.time_since_epoch().count() != 0)
     dt = std::chrono::duration<double>(now - last_visualizer_time_).count();
   last_visualizer_time_ = now;
+
+  if (state_.display_mode == DisplayMode::Disc) {
+    if (!disc_)
+      disc_ = std::make_unique<ui::DiscRenderer>();
+    const ImmersiveLayout &layout = metrics_.immersive;
+    ui::DiscFrame frame{
+        .columns = std::max(0, layout.visualizer_container_columns),
+        .rows = std::max(0, layout.visualizer_container_rows),
+        .dt = std::clamp(dt, 1.0 / 240.0, 0.12),
+        .playback = state_.player.state,
+    };
+    disc_->update(frame);
+    return disc_->render(frame);
+  }
+
+  // Spectrum keeps its existing data, beat and rendering path unchanged.
+  ensureVisualizerRenderer();
   dt = std::clamp(dt, 1.0 / 240.0, 0.05);
   low_energy_ = lowBandOnset();
   beat_ = beatStep(beat_, low_energy_, dt);
@@ -4483,10 +4494,15 @@ void Application::processTimers() {
   // repainting it 30 times a second is exactly what makes a terminal IME's
   // composition flicker. The fast rate is therefore suspended for as long as
   // the box is open; closing it brings the animation straight back.
-  ticker_fast_.store(
-      !search_prompt_ &&
-      (state_.player.state == PlaybackState::Playing || state_.demo ||
-       ui_slider_test_ || motion_test_ || state_.visualizer.data_available));
+  const bool disc_animation = state_.display_mode == DisplayMode::Disc &&
+                              disc_ && disc_->animationActive();
+  const int animation_interval_ms =
+      state_.display_mode == DisplayMode::Disc ? 67 : 33;
+  ticker_fast_interval_ms_.store(animation_interval_ms);
+  ticker_fast_.store(!search_prompt_ &&
+                     (state_.player.state == PlaybackState::Playing ||
+                      disc_animation || state_.demo || ui_slider_test_ ||
+                      motion_test_ || state_.visualizer.data_available));
   // Top-bar clock. Refreshed at most once a second; the ticker is 250 ms.
   {
     if (state_.demo) {

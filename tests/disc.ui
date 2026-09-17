@@ -1,0 +1,50 @@
+# Disc integration smoke: select the mutually-exclusive mode through Appearance,
+# render a playing record, switch Theme, and resize at both medium and narrow
+# layouts. State probes verify the tonearm and bounds rather than matching ANSI.
+size 110x32
+load
+key 2
+keys j j
+expect-state node=core:appearance
+key l
+expect-state setting=Theme
+keys j j
+expect-state setting=Disc
+key Enter
+key i
+# The script harness paints only when a command asks for a frame; advance a
+# handful of real frames so this measures the same eased entry as the live UI.
+sleep 0.1
+state
+sleep 0.1
+state
+sleep 0.1
+state
+sleep 0.1
+state
+sleep 0.1
+state
+sleep 0.1
+state
+expect-state view=immersive viz=disc discFit=1
+dump
+
+size 78x24
+sleep 0.3
+expect-state viz=disc discFit=1
+dump
+
+# Change to the next theme and render again. Disc keeps the reference image's
+# black/graphite/red/silver palette; the cell-level test verifies that themes do
+# not recolour it.
+key i
+keys k k
+expect-state setting=Theme
+key Enter
+key j
+key Enter
+key i
+size 110x32
+sleep 0.3
+expect-state view=immersive viz=disc discFit=1
+dump

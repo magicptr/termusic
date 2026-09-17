@@ -70,11 +70,6 @@ channels = 2
 enabled = true
 max_entries = 100
 
-[plugins]
-enabled = true
-# Empty means the `plugins` directory in termusic's XDG data directory.
-directory = ""
-
 # Key bindings: only what you write here overrides a built-in binding.
 # [keybindings.global]
 # toggle_immersive = "i"

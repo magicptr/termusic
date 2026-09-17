@@ -14,8 +14,6 @@
 #include "config/config.hpp"
 #include "config/paths.hpp"
 #include "controller/controller.hpp"
-#include "extensions/extension_registry.hpp"
-#include "extensions/plugin_manager.hpp"
 #include "ui/app.hpp"
 #include "ui/visualizer/palette.hpp"
 #include "visualizer/analyzer.hpp"
@@ -69,9 +67,6 @@ void printUsage() {
          "\n"
          "Other options:\n"
          "  --theme-dir PATH        directory of user themes (*.toml)\n"
-         "  --plugin-dir PATH       directory of native plugins\n"
-         "  --no-plugins            do not load plugins\n"
-         "  --list-plugins          list discovered plugins and exit\n"
          "  --icons nerd|unicode    icon set for terminals without a Nerd Font\n"
          "  --fifo PATH             MPD spectrum fifo for the visualizer\n"
          "  --visualizer-palette ID theme | ice | fire | rainbow\n"
@@ -125,11 +120,6 @@ int runCheckConfig(const termusic::AppPaths &paths,
   };
   std::cout << "Data directory: " << directory(paths.data_directory) << '\n';
   std::cout << "Cache directory: " << directory(paths.cache_directory) << '\n';
-  std::cout << "Plugin directory: "
-            << (load.config.plugin_directory.empty()
-                    ? directory(paths.pluginDirectory())
-                    : load.config.plugin_directory)
-            << '\n';
   if (!load.config.preserved.empty())
     std::cout << "Preserved settings: " << load.config.preserved.size()
               << " unknown key(s) kept for writing\n";
@@ -147,7 +137,6 @@ int main(int argc, char **argv) {
   // which file is even read. Nothing here touches the disk or the network.
   termusic::CliOverrides cli;
   bool demo = false;
-  bool list_plugins = false;
   bool check_config = false;
   bool print_default_config = false;
   std::string ui_script;
@@ -229,14 +218,6 @@ int main(int argc, char **argv) {
                readValue(argc, argv, &index, &value)) {
       cli.theme_directory = std::move(value);
       cli.theme_directory_set = true;
-    } else if (argument == "--plugin-dir" &&
-               readValue(argc, argv, &index, &value)) {
-      cli.plugin_directory = std::move(value);
-      cli.plugin_directory_set = true;
-    } else if (argument == "--no-plugins") {
-      cli.no_plugins = true;
-    } else if (argument == "--list-plugins") {
-      list_plugins = true;
     } else if (argument == "--icons" && readValue(argc, argv, &index, &value)) {
       if (value != "nerd" && value != "unicode") {
         std::cerr << "--icons expects 'nerd' or 'unicode'\n";
@@ -291,12 +272,6 @@ int main(int argc, char **argv) {
     config.visualizer_palette = cli.visualizer_palette;
   if (cli.theme_directory_set)
     config.theme_directory = cli.theme_directory;
-  if (cli.plugin_directory_set) {
-    config.plugin_directory = cli.plugin_directory;
-    config.plugins_enabled = true;
-  }
-  if (cli.no_plugins)
-    config.plugins_enabled = false;
   config.ui_slider_test = cli.ui_slider_test;
   config.ui_mouse_debug = cli.ui_mouse_debug;
   config.ui_visualizer_motion_test = cli.ui_visualizer_motion_test;
@@ -306,9 +281,6 @@ int main(int argc, char **argv) {
   const std::filesystem::path theme_directory =
       config.theme_directory.empty() ? paths.themeDirectory()
                                      : std::filesystem::path(config.theme_directory);
-  const std::filesystem::path plugin_directory =
-      config.plugin_directory.empty() ? paths.pluginDirectory()
-                                      : std::filesystem::path(config.plugin_directory);
 
   // Diagnostics: configuration problems and connection failures are worth
   // keeping. The log lives in the XDG cache directory, is written only when
@@ -323,25 +295,9 @@ int main(int argc, char **argv) {
                       " does not exist; built-in defaults in use");
 
   termusic::ui::ThemeRegistry themes;
-  std::vector<std::string> extension_warnings;
+  std::vector<std::string> theme_warnings;
   if (!theme_directory.empty())
-    themes.loadDirectory(theme_directory, &extension_warnings);
-  termusic::extensions::ExtensionRegistry extensions;
-  termusic::extensions::PluginManager plugins(extensions, themes,
-                                              config.plugin_settings);
-  if (config.plugins_enabled && !plugin_directory.empty())
-    plugins.loadDirectory(plugin_directory);
-  extension_warnings.insert(extension_warnings.end(),
-                            plugins.warnings().begin(),
-                            plugins.warnings().end());
-  if (list_plugins) {
-    for (const auto &plugin : plugins.plugins())
-      std::cout << plugin.id << '\t' << plugin.version << '\t' << plugin.path
-                << '\n';
-    for (const auto &warning : extension_warnings)
-      std::cerr << "warning: " << warning << '\n';
-    return extension_warnings.empty() ? EXIT_SUCCESS : EXIT_FAILURE;
-  }
+    themes.loadDirectory(theme_directory, &theme_warnings);
 
   termusic::AppState state;
   state.demo = demo;
@@ -352,13 +308,13 @@ int main(int argc, char **argv) {
     state.toast = load.errors.front();
     state.toast_at = std::chrono::steady_clock::now();
   }
-  if (!extension_warnings.empty()) {
-    for (const auto &warning : extension_warnings) {
+  if (!theme_warnings.empty()) {
+    for (const auto &warning : theme_warnings) {
       std::cerr << "termusic: " << warning << '\n';
-      diagnostics.write("extension: " + warning);
+      diagnostics.write("theme: " + warning);
     }
     if (!state.toast) {
-      state.toast = extension_warnings.front();
+      state.toast = theme_warnings.front();
       state.toast_at = std::chrono::steady_clock::now();
     }
   }
@@ -370,7 +326,7 @@ int main(int argc, char **argv) {
   controller.setDiagnosticsLog(&diagnostics);
   termusic::VisualizerAnalyzer analyzer;
   termusic::ui::Application application(state, controller, backend, analyzer,
-                                        themes, extensions);
+                                        themes);
   if (!ui_script.empty()) {
     std::ifstream script(ui_script);
     if (!script) {
