@@ -28,7 +28,6 @@ constexpr double kArmParkAngle = -38.0 * std::numbers::pi / 180.0;
 // Keep the record below the neutral metal arm in the value hierarchy. The
 // grooves still have enough range to read while rotating, but no highlight is
 // bright enough to turn the black vinyl grey.
-const Color kVinylCore = Color::RGB(9, 9, 12);
 const Color kVinylEdge = Color::RGB(5, 3, 10);
 const Color kSpindle = Color::RGB(0, 0, 0);
 const Color kArmShadow = Color::RGB(40, 39, 45);
@@ -296,11 +295,18 @@ Element DiscRenderer::render(const DiscFrame &frame) {
       if (radius > 1.02)
         continue;
 
-      if (radius >= 0.29 && radius <= 0.96) {
+      // Continue the innermost groove shading all the way underneath the
+      // centre label. Previously 0.285 < radius < 0.29 used a separate nearly
+      // black core colour; terminal-cell quantisation turned that tiny annulus
+      // into conspicuous black squares above, below or beside the label at
+      // certain responsive sizes. The label still paints over the centre at a
+      // higher layer, while every exposed neighbour now belongs to the same
+      // graphite surface as the rest of the record.
+      if (radius <= 0.96) {
         m.paint(x, y, "█", graphite(radius, angle, m.phase), 3);
       } else {
-        const Color base = radius > 0.96 ? kVinylEdge : kVinylCore;
-        m.paint(x, y, radius > 0.97 ? boundaryGlyph(angle) : "█", base, 2);
+        m.paint(x, y, radius > 0.97 ? boundaryGlyph(angle) : "█", kVinylEdge,
+                2);
       }
 
       if (radius <= 0.285) {

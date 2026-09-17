@@ -75,6 +75,32 @@ int main() {
   assert(themed_screen.CellAt(stats.center_x, stats.center_y).foreground_color ==
          ftxui::Color::RGB(0, 0, 0));
 
+  // The tiny annulus immediately outside the label is groove graphite, not a
+  // separate near-black core. At responsive sizes that old annulus quantized
+  // into isolated black squares around the red/themed centre.
+  const auto large = frame(180, 86, PlaybackState::Stopped);
+  draw(disc, large);
+  const auto large_stats = disc.stats();
+  ftxui::Screen large_screen(180, 86);
+  ftxui::Render(large_screen, disc.render(large));
+  bool sampled_inner_annulus = false;
+  for (int y = 0; y < 86; ++y) {
+    for (int x = 0; x < 180; ++x) {
+      const double dx =
+          (x - large_stats.center_x) * kDiscCellAspect /
+          static_cast<double>(large_stats.radius_rows);
+      const double dy = (y - large_stats.center_y) /
+                        static_cast<double>(large_stats.radius_rows);
+      const double radius = std::hypot(dx, dy);
+      if (radius <= 0.285 || radius >= 0.29)
+        continue;
+      sampled_inner_annulus = true;
+      assert(large_screen.CellAt(x, y).foreground_color !=
+             ftxui::Color::RGB(9, 9, 12));
+    }
+  }
+  assert(sampled_inner_annulus);
+
   // Every point well inside the record is filled; there are no holes between
   // groove bands. The pivoted arm uses only fixed neutral metal colours.
   for (int y = 0; y < 22; ++y) {
