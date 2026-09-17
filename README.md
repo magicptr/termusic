@@ -10,26 +10,74 @@ fast, distraction-free way to manage and play a local music library without leav
 
 ## Requirements
 
-- A C++20-compatible compiler
-- CMake 3.20 or later
-- Git
-- Meson
-- Ninja
+### Runtime
 
-Install the build dependencies on Ubuntu / Debian:
+- Linux
+- An **MPD server** for playback, local or remote. termusic is a client: it never
+  installs, starts or configures the daemon. See
+  [MPD playback backend](#mpd-playback-backend) if you do not have one yet.
+- Building and running `--help` / `--version` need **no** MPD at all, so a fresh
+  machine can be set up in the order below without touching MPD first.
+
+### Build tools
+
+- A C++20-compatible compiler (GCC or Clang)
+- CMake 3.20 or later
+- Git (also used to fetch the dependencies)
+- Meson
+- Ninja (Meson's build backend)
+
+FTXUI, libmpdclient, and kissfft are downloaded automatically during the first
+build and linked statically, so their development packages do not need to be
+installed separately. That first configure needs network access to their
+upstream repositories; later builds reuse what was already downloaded. No
+package manager, no `pkg-config`, and no vcpkg is involved.
+
+## Install the build tools
+
+### Ubuntu / Debian
 
 ```bash
 sudo apt update
 sudo apt install build-essential cmake git meson ninja-build
 ```
 
-Install the build dependencies on Fedora:
+### Fedora
 
 ```bash
-sudo dnf install gcc-c++ cmake git meson ninja-build
+sudo dnf install gcc-c++ make cmake git meson ninja-build
 ```
 
-FTXUI, libmpdclient, and kissfft are downloaded automatically during the first build and linked statically, so their development packages do not need to be installed separately.
+### Arch Linux
+
+```bash
+sudo pacman -S --needed base-devel git cmake meson ninja
+```
+
+### Any other distribution
+
+Install the equivalents: a C++20 compiler, CMake 3.20 or newer, Git, Meson and
+Ninja. `make` is worth having too, in case you configure without `-G Ninja` and
+CMake picks its default generator.
+
+Check the tools once before building — the CMake floor is the one that bites:
+
+```bash
+cmake --version     # must be 3.20 or newer
+meson --version
+ninja --version
+git --version
+c++ --version       # or clang++ --version
+```
+
+If your distribution only ships an older CMake, install a newer one from
+[cmake.org](https://cmake.org/download/) or your distribution's backports
+before continuing.
+
+With the tools in place, continue with [Clone](#clone) and [Build](#build). MPD
+is only needed to play something, so the
+[MPD playback backend](#mpd-playback-backend) section can wait until after
+termusic starts.
 
 ## MPD playback backend
 
@@ -38,8 +86,12 @@ MPD is required for playback but is not a build dependency. If an MPD server is 
 To connect to a remote server, run termusic with its address:
 
 ```bash
-./build/termusic --host <MPD_HOST> --port <MPD_PORT>
+./build/termusic --host 192.168.1.20 --port 6600    # your MPD server's address
 ```
+
+The values must be replaced: `--port` accepts digits only, so pasting a
+placeholder such as `<MPD_PORT>` prints `--port expects an integer from 1 to
+65535` and exits.
 
 You can also save the address under **Core → General → Host / Port → Save and reconnect**.
 
@@ -154,11 +206,29 @@ git clone https://github.com/magicptr/termusic.git
 
 ## Build
 
+The first configure downloads FTXUI, libmpdclient and kissfft and builds
+libmpdclient, so it needs network access and takes a few minutes; after that a
+rebuild works offline.
+
 ```bash
 cd termusic
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
-cmake --build build -j
+cmake --build build
 ```
+
+Ninja already builds with all cores; add `--parallel <N>` to `cmake --build` if
+you want to cap the number of jobs. Do not write `-j"$(nproc)"`: wherever the
+`$(...)` is not expanded by a shell (a Makefile, a CI step, fish), CMake gets the
+literal text and answers `'-j' invalid number '$(nproc)' given.`
+
+`-DBUILD_TESTING=OFF` skips the test binaries. To build and run them as well,
+configure with `-DBUILD_TESTING=ON` instead and finish with
+`ctest --test-dir build --output-on-failure`.
+
+`-G Ninja` pins the generator. If `build/` already exists from a configure that
+used a different one, CMake refuses to reuse it (`does not match the generator
+used previously`): delete that directory or configure into a fresh one
+(`-B build-ninja`).
 
 ## Run
 
@@ -177,17 +247,20 @@ sudo cmake --install build
 termusic
 ```
 
-Install for the current user only:
+Install for the current user only — reconfigure the build directory with your
+own prefix first:
 
 ```bash
-cmake --install build --prefix "$HOME/.local"
-termusic
+cmake -S . -B build -DCMAKE_INSTALL_PREFIX="$HOME/.local"
+cmake --build build
+cmake --install build
+$HOME/.local/bin/termusic
 ```
 
-If `$HOME/.local/bin` is not in your `PATH`, run termusic directly:
+If `$HOME/.local/bin` is not in your `PATH`, add it — for a Bourne-style shell:
 
 ```bash
-"$HOME/.local/bin/termusic"
+export PATH="$HOME/.local/bin:$PATH"
 ```
 
 ## Uninstall
