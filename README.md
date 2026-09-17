@@ -3,7 +3,6 @@
 Termusic is a lightweight, keyboard-driven terminal music player focused on local music playback. It uses Vim-style keyboard shortcuts for efficient music selection and playback.It is designed for Linux users, terminal enthusiasts, Vim users, and anyone who wants a
 fast, distraction-free way to manage and play a local music library without leaving the command line.
 
-
 ## Demo
 
 ![Library view](./docs/images/list.png)
@@ -266,5 +265,3 @@ In visual selection mode, use `j` and `k` to extend the selection, press `y` to 
 Except for the reserved quit key `q`, shortcuts can be changed under **Core → Keybindings**. Press `R` on that page to restore all default bindings.
 
 ---
-
-termusic is still under active development. If you encounter a problem or have a suggestion, please [contact me](mailto:yiwithming@gmail.com).
