@@ -211,24 +211,35 @@ libmpdclient, so it needs network access and takes a few minutes; after that a
 rebuild works offline.
 
 ```bash
-cd termusic
-cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
-cmake --build build
+# Enter the cloned directory, configure, and compile as one command.
+cd termusic && \
+  cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF && \
+  cmake --build build --parallel 2
 ```
 
-Ninja already builds with all cores; add `--parallel <N>` to `cmake --build` if
-you want to cap the number of jobs. Do not write `-j"$(nproc)"`: wherever the
-`$(...)` is not expanded by a shell (a Makefile, a CI step, fish), CMake gets the
-literal text and answers `'-j' invalid number '$(nproc)' given.`
+The command uses two parallel jobs by default so it is safe on small virtual
+machines. Increase `--parallel 2` on a machine with more memory, or reduce it to
+`--parallel 1` if the compiler is killed because the VM runs out of memory. Do
+not write `-j"$(nproc)"`: wherever the `$(...)` is not expanded by a shell (a
+Makefile, a CI step, fish), CMake gets the literal text and answers `'-j'
+invalid number '$(nproc)' given.`
 
 `-DBUILD_TESTING=OFF` skips the test binaries. To build and run them as well,
 configure with `-DBUILD_TESTING=ON` instead and finish with
 `ctest --test-dir build --output-on-failure`.
 
-`-G Ninja` pins the generator. If `build/` already exists from a configure that
-used a different one, CMake refuses to reuse it (`does not match the generator
-used previously`): delete that directory or configure into a fresh one
-(`-B build-ninja`).
+### If the build directory is refused
+
+`build/` is created by the configure step; run both commands from the repository
+root and in that order. Every message below means the same thing — that path is
+not a usable build directory yet:
+
+| message | what happened | fix |
+|---|---|---|
+| `Error: …/build is not a directory` (from `cmake --build`) | the configure step never ran, failed, or ran in another directory | run the combined command above from the repository root |
+| `Unable to (re)create the private pkgRedirects directory … not having read/write access to the build directory` | a **file** or broken symlink is named `build`, or the directory belongs to another user (typically left over from `sudo cmake … -B build`) | `ls -ld build` — `-` is a file, `l` a symlink, `d` a directory — then remove it or configure into a fresh one (`-B build-ninja`) |
+| `The current CMakeCache.txt directory … is different than the directory … where CMakeCache.txt was created` | the checkout or the build directory was moved, renamed or copied | delete `build/` and configure again |
+| `does not match the generator used previously` | `build/` was configured earlier without `-G Ninja` | delete it or configure into a fresh one (`-B build-ninja`) |
 
 ## Run
 
