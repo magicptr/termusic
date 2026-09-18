@@ -48,28 +48,6 @@ sudo apt install build-essential cmake git meson ninja-build
 sudo dnf install gcc-c++ make cmake git meson ninja-build
 ```
 
-### Arch Linux
-
-```bash
-sudo pacman -S --needed base-devel git cmake meson ninja
-```
-
-### Any other distribution
-
-Install the equivalents: a C++20 compiler, CMake 3.20 or newer, Git, Meson and
-Ninja. `make` is worth having too, in case you configure without `-G Ninja` and
-CMake picks its default generator.
-
-Check the tools once before building — the CMake floor is the one that bites:
-
-```bash
-cmake --version     # must be 3.20 or newer
-meson --version
-ninja --version
-git --version
-c++ --version       # or clang++ --version
-```
-
 If your distribution only ships an older CMake, install a newer one from
 [cmake.org](https://cmake.org/download/) or your distribution's backports
 before continuing.
@@ -194,10 +172,6 @@ cp /path/to/your/song.mp3 "$HOME/Music/"
 
 Start termusic, then select **Core → General → Update database**. When the update finishes, the songs will appear in **Library** and **Default**.
 
-### Default playlist
-
-**Default** lists all songs in the MPD media library and is read-only. Create another playlist when you need to add, remove, or reorder songs.
-
 ## Clone
 
 ```bash
@@ -211,35 +185,10 @@ libmpdclient, so it needs network access and takes a few minutes; after that a
 rebuild works offline.
 
 ```bash
-# Enter the cloned directory, configure, and compile as one command.
 cd termusic && \
   cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF && \
   cmake --build build --parallel 2
 ```
-
-The command uses two parallel jobs by default so it is safe on small virtual
-machines. Increase `--parallel 2` on a machine with more memory, or reduce it to
-`--parallel 1` if the compiler is killed because the VM runs out of memory. Do
-not write `-j"$(nproc)"`: wherever the `$(...)` is not expanded by a shell (a
-Makefile, a CI step, fish), CMake gets the literal text and answers `'-j'
-invalid number '$(nproc)' given.`
-
-`-DBUILD_TESTING=OFF` skips the test binaries. To build and run them as well,
-configure with `-DBUILD_TESTING=ON` instead and finish with
-`ctest --test-dir build --output-on-failure`.
-
-### If the build directory is refused
-
-`build/` is created by the configure step; run both commands from the repository
-root and in that order. Every message below means the same thing — that path is
-not a usable build directory yet:
-
-| message | what happened | fix |
-|---|---|---|
-| `Error: …/build is not a directory` (from `cmake --build`) | the configure step never ran, failed, or ran in another directory | run the combined command above from the repository root |
-| `Unable to (re)create the private pkgRedirects directory … not having read/write access to the build directory` | a **file** or broken symlink is named `build`, or the directory belongs to another user (typically left over from `sudo cmake … -B build`) | `ls -ld build` — `-` is a file, `l` a symlink, `d` a directory — then remove it or configure into a fresh one (`-B build-ninja`) |
-| `The current CMakeCache.txt directory … is different than the directory … where CMakeCache.txt was created` | the checkout or the build directory was moved, renamed or copied | delete `build/` and configure again |
-| `does not match the generator used previously` | `build/` was configured earlier without `-G Ninja` | delete it or configure into a fresh one (`-B build-ninja`) |
 
 ## Run
 
@@ -255,6 +204,9 @@ Install system-wide:
 
 ```bash
 sudo cmake --install build
+```
+run:
+```bash
 termusic
 ```
 
@@ -348,4 +300,3 @@ In visual selection mode, use `j` and `k` to extend the selection, press `y` to 
 
 Except for the reserved quit key `q`, shortcuts can be changed under **Core → Keybindings**. Press `R` on that page to restore all default bindings.
 
----
