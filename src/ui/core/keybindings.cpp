@@ -115,7 +115,7 @@ public:
       column.push_back(hbox({
           text(row.context) | color(theme_.muted_text),
           text(row.action) | color(theme_.text),
-          text(row.binding) | color(theme_.accent_purple),
+          text(row.binding) | color(theme_.binding),
           text(row.origin) | color(origin_fg),
           text(row.effect) | color(effect_fg),
       }));

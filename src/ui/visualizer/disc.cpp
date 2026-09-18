@@ -281,7 +281,7 @@ Element DiscRenderer::render(const DiscFrame &frame) {
   // is the theme accent itself; the other two faces are derived from it, so a
   // theme switch preserves the pixel-art lighting instead of flattening the
   // centre into one solid colour.
-  const Color label_light = frame.theme.accent_primary;
+  const Color label_light = frame.theme.disc_label;
   const Color label_main =
       Color::Interpolate(0.12F, label_light, Color::Black);
   const Color label_shade =

@@ -1640,6 +1640,12 @@ int main() {
     assert(crimson.muted_text == ftxui::Color::RGB(0x8F, 0x85, 0x85));
     assert(crimson.weak_text == ftxui::Color::RGB(0x51, 0x4A, 0x4A));
     assert(crimson.border == ftxui::Color::RGB(0xC9, 0xC3, 0xC3));
+    assert(crimson.active_collection ==
+           ftxui::Color::RGB(0xB8, 0x8A, 0x3C));
+    assert(crimson.playing == crimson.active_collection);
+    assert(crimson.playback_context == crimson.active_collection);
+    assert(crimson.binding == crimson.active_collection);
+    assert(crimson.disc_label == crimson.accent_primary);
     assert(crimson.input_border == crimson.border);
   }
 

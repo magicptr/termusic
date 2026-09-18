@@ -2759,9 +2759,9 @@ Element Application::renderSidebarPlayback() {
   candidates.push_back({song->displayTitle(), "text:bold", 3,
                         text(" " + line(song->displayTitle())) | bold |
                             color(theme_.text)});
-  candidates.push_back({context, "accent_secondary:regular", 2,
+  candidates.push_back({context, "playback_context:regular", 2,
                         text(" " + line(context)) |
-                            color(theme_.accent_secondary)});
+                            color(theme_.playback_context)});
   candidates.push_back({"NOW PLAYING", "accent_primary:bold", 4,
                         text(" " + line("NOW PLAYING")) | bold |
                             color(theme_.accent_primary)});
@@ -2923,9 +2923,11 @@ Element Application::renderTrackBuffer() {
           is_cursor ? theme_.track_cursor_fg
                     : (is_playing ? theme_.playing : theme_.text);
       const Color secondary_fg =
-          is_cursor ? theme_.track_cursor_fg : theme_.header_text;
+          is_cursor ? theme_.track_cursor_fg
+                    : (is_playing ? theme_.playing : theme_.header_text);
       const Color muted_fg =
-          is_cursor ? theme_.track_cursor_fg : theme_.muted_text;
+          is_cursor ? theme_.track_cursor_fg
+                    : (is_playing ? theme_.playing : theme_.muted_text);
       // Results are renumbered inside the filtered view; the complete list
       // keeps the ordinals it always had.
       const SongRowParts parts = songRowParts(song, position + 1, columns);

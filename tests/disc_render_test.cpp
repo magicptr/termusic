@@ -61,17 +61,17 @@ int main() {
   assert(screen.CellAt(stats.center_x, stats.center_y).foreground_color ==
          ftxui::Color::RGB(0, 0, 0));
   assert(screen.CellAt(stats.center_x - 3, stats.center_y).foreground_color ==
-         reference.theme.accent_primary);
+         reference.theme.disc_label);
 
   // Only the label follows the live theme. Re-rendering the same geometry with
   // another accent changes its lit face immediately, without rebuilding the
   // renderer or recolouring the spindle.
   DiscFrame themed = reference;
-  themed.theme.accent_primary = ftxui::Color::RGB(32, 146, 208);
+  themed.theme.disc_label = ftxui::Color::RGB(32, 146, 208);
   ftxui::Screen themed_screen(58, 22);
   ftxui::Render(themed_screen, disc.render(themed));
   assert(themed_screen.CellAt(stats.center_x - 3, stats.center_y)
-             .foreground_color == themed.theme.accent_primary);
+             .foreground_color == themed.theme.disc_label);
   assert(themed_screen.CellAt(stats.center_x, stats.center_y).foreground_color ==
          ftxui::Color::RGB(0, 0, 0));
 

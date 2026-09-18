@@ -72,8 +72,11 @@ struct Theme {
   /// `playing`, so the active collection and the current song never read as the
   /// same state.
   ftxui::Color active_collection = ftxui::Color::RGB(0x74, 0xC7, 0xEC); // Sapphire
-  /// The track MPD is playing (▶). Never fills a whole row.
+  /// The track MPD is playing (▶); the whole row uses this colour.
   ftxui::Color playing = ftxui::Color::RGB(0x89, 0xDC, 0xEB); // Sky
+  /// Source line in the lower-left playback card (`# playlist`, etc.).
+  ftxui::Color playback_context =
+      ftxui::Color::RGB(0x74, 0xC7, 0xEC); // Sapphire
   /// Tree rows INSIDE the two roots. Lighter than the roots' magenta so the
   /// hierarchy reads at a glance: magenta directory, pink-purple contents.
   ftxui::Color tree_item = ftxui::Color::RGB(0xF5, 0xC2, 0xE7); // Pink
@@ -98,6 +101,10 @@ struct Theme {
   ftxui::Color volume_empty = ftxui::Color::RGB(0x31, 0x32, 0x44); // Surface0
   /// Resting colour for player glyphs.
   ftxui::Color icon = ftxui::Color::RGB(0xBA, 0xC2, 0xDE); // Subtext1
+  /// Binding values in the Keybindings table.
+  ftxui::Color binding = ftxui::Color::RGB(0xB4, 0xBE, 0xFE); // Lavender
+  /// Paper label at the visual centre of the record.
+  ftxui::Color disc_label = ftxui::Color::RGB(0xCB, 0xA6, 0xF7); // Mauve
 
   // --- Spectrum -------------------------------------------------------------
   /// Two accents only: the spectrum is not a rainbow.

@@ -70,6 +70,7 @@ const std::unordered_map<std::string, ColorMember> &colorMembers() {
       {"track_cursor_fg", &Theme::track_cursor_fg},
       {"active_collection", &Theme::active_collection},
       {"playing", &Theme::playing},
+      {"playback_context", &Theme::playback_context},
       {"tree_item", &Theme::tree_item},
       {"surface", &Theme::surface},
       {"divider", &Theme::divider},
@@ -85,6 +86,8 @@ const std::unordered_map<std::string, ColorMember> &colorMembers() {
       {"progress_filled_end", &Theme::progress_filled_end},
       {"progress_empty", &Theme::progress_empty},
       {"icon", &Theme::icon},
+      {"binding", &Theme::binding},
+      {"disc_label", &Theme::disc_label},
       {"progress_knob", &Theme::progress_knob},
       {"spectrum_low", &Theme::spectrum_low},
       {"spectrum_high", &Theme::spectrum_high},
@@ -130,6 +133,7 @@ Theme kanagawaTheme() {
   theme.visual_selection_bg = theme.surface;
   theme.active_collection = ftxui::Color::RGB(0x7A, 0xA8, 0x9F); // waveAqua2
   theme.playing = ftxui::Color::RGB(0x9C, 0xAB, 0xCA);           // springViolet2
+  theme.playback_context = theme.accent_secondary;
   theme.tree_item = theme.accent_secondary;
   theme.hover_bg = theme.surface;
   theme.hover_border = theme.accent_primary;
@@ -140,6 +144,8 @@ Theme kanagawaTheme() {
   theme.volume_fill = theme.active_collection;
   theme.volume_empty = theme.border_dim;
   theme.icon = theme.header_text;
+  theme.binding = theme.accent_purple;
+  theme.disc_label = theme.accent_primary;
   theme.spectrum_low = theme.accent_primary;
   theme.spectrum_high = theme.accent_secondary;
   theme.spectrum_peak = ftxui::Color::RGB(0xE6, 0xC3, 0x84); // carpYellow
@@ -182,6 +188,7 @@ Theme materialPalenightTheme() {
   theme.visual_selection_bg = theme.surface;
   theme.active_collection = theme.accent_secondary;
   theme.playing = ftxui::Color::RGB(0x89, 0xDD, 0xFF); // cyan
+  theme.playback_context = theme.accent_secondary;
   theme.tree_item = theme.tree_cursor_bg;
   theme.hover_bg = theme.surface;
   theme.hover_border = theme.accent_primary;
@@ -192,6 +199,8 @@ Theme materialPalenightTheme() {
   theme.volume_fill = theme.playing;
   theme.volume_empty = theme.border_dim;
   theme.icon = theme.header_text;
+  theme.binding = theme.accent_purple;
+  theme.disc_label = theme.accent_primary;
   theme.spectrum_low = theme.accent_primary;
   theme.spectrum_high = theme.accent_secondary;
   theme.spectrum_peak = ftxui::Color::RGB(0xFF, 0xCB, 0x6B); // yellow
@@ -234,6 +243,7 @@ Theme monokaiProTheme() {
   theme.visual_selection_bg = theme.surface;
   theme.active_collection = ftxui::Color::RGB(0xFC, 0x98, 0x67); // orange
   theme.playing = theme.accent_secondary;
+  theme.playback_context = theme.accent_secondary;
   theme.tree_item = theme.accent_primary;
   theme.hover_bg = theme.surface;
   theme.hover_border = theme.accent_primary;
@@ -244,6 +254,8 @@ Theme monokaiProTheme() {
   theme.volume_fill = ftxui::Color::RGB(0xA9, 0xDC, 0x76); // green
   theme.volume_empty = theme.border_dim;
   theme.icon = theme.header_text;
+  theme.binding = theme.accent_purple;
+  theme.disc_label = theme.accent_primary;
   theme.spectrum_low = theme.accent_primary;
   theme.spectrum_high = theme.accent_secondary;
   theme.spectrum_peak = ftxui::Color::RGB(0xFF, 0xD8, 0x66); // yellow
@@ -286,6 +298,7 @@ Theme githubDarkTheme() {
   theme.visual_selection_bg = theme.surface;
   theme.active_collection = theme.accent_purple;
   theme.playing = ftxui::Color::RGB(0x3F, 0xB9, 0x50); // success.fg
+  theme.playback_context = theme.accent_secondary;
   theme.tree_item = theme.brand;
   theme.hover_bg = theme.surface;
   theme.hover_border = theme.accent_primary;
@@ -296,6 +309,8 @@ Theme githubDarkTheme() {
   theme.volume_fill = theme.accent_secondary;
   theme.volume_empty = theme.border_dim;
   theme.icon = theme.header_text;
+  theme.binding = theme.accent_purple;
+  theme.disc_label = theme.accent_primary;
   theme.spectrum_low = theme.accent_primary;
   theme.spectrum_high = theme.accent_purple;
   theme.spectrum_peak = ftxui::Color::RGB(0xD2, 0x99, 0x22); // attention.fg
@@ -338,6 +353,7 @@ Theme oxocarbonTheme() {
   theme.visual_selection_bg = theme.surface;
   theme.active_collection = ftxui::Color::RGB(0x82, 0xCF, 0xFF); // pale cyan
   theme.playing = ftxui::Color::RGB(0x08, 0xBD, 0xBA);           // teal
+  theme.playback_context = theme.accent_secondary;
   theme.tree_item = theme.active_collection;
   theme.hover_bg = theme.surface;
   theme.hover_border = theme.accent_primary;
@@ -348,6 +364,8 @@ Theme oxocarbonTheme() {
   theme.volume_fill = theme.playing;
   theme.volume_empty = theme.border_dim;
   theme.icon = theme.header_text;
+  theme.binding = theme.accent_purple;
+  theme.disc_label = theme.accent_primary;
   theme.spectrum_low = theme.accent_primary;
   theme.spectrum_high = theme.accent_secondary;
   theme.spectrum_peak = theme.brand;
@@ -390,6 +408,7 @@ Theme catppuccinMacchiatoTheme() {
   theme.visual_selection_bg = theme.border;
   theme.active_collection = theme.accent_secondary;
   theme.playing = ftxui::Color::RGB(0x91, 0xD7, 0xE3); // Sky
+  theme.playback_context = theme.accent_secondary;
   theme.tree_item = theme.brand;
   theme.hover_bg = theme.surface;
   theme.hover_border = ftxui::Color::RGB(0x6E, 0x73, 0x8D); // Overlay0
@@ -400,6 +419,8 @@ Theme catppuccinMacchiatoTheme() {
   theme.volume_fill = ftxui::Color::RGB(0x8B, 0xD5, 0xCA); // Teal
   theme.volume_empty = theme.surface;
   theme.icon = theme.header_text;
+  theme.binding = theme.accent_purple;
+  theme.disc_label = theme.accent_primary;
   theme.spectrum_low = theme.accent_primary;
   theme.spectrum_high = theme.brand;
   theme.spectrum_peak = theme.brand;
@@ -425,6 +446,7 @@ Theme crimsonTheme() {
   const auto muted_red = ftxui::Color::RGB(0x8F, 0x85, 0x85);
   const auto dark_text = ftxui::Color::RGB(0x51, 0x4A, 0x4A);
   const auto pale_border = ftxui::Color::RGB(0xC9, 0xC3, 0xC3);
+  const auto gold = ftxui::Color::RGB(0xB8, 0x8A, 0x3C);
 
   theme.background = near_black;
   theme.background_deep = near_black;
@@ -449,8 +471,9 @@ Theme crimsonTheme() {
   theme.tree_cursor_fg = near_black;
   theme.track_cursor_bg = crimson;
   theme.track_cursor_fg = near_black;
-  theme.active_collection = crimson;
-  theme.playing = coral;
+  theme.active_collection = gold;
+  theme.playing = gold;
+  theme.playback_context = gold;
   theme.tree_item = muted_red;
   theme.hover_bg = deep_black;
   theme.hover_border = coral;
@@ -463,6 +486,8 @@ Theme crimsonTheme() {
   theme.volume_fill = coral;
   theme.volume_empty = deep_black;
   theme.icon = warm_white;
+  theme.binding = gold;
+  theme.disc_label = theme.accent_primary;
   theme.spectrum_low = wine;
   theme.spectrum_high = crimson;
   theme.spectrum_peak = coral;
